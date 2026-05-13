@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambdacontext"
-	"github.com/ellogroup/ello-golang-ctx/logctx"
+	"github.com/ellogroup/ello-golang-ctx/v2/logctx"
 )
 
 type contextNoResponse[E any] struct{}
