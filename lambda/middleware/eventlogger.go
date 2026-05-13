@@ -133,7 +133,6 @@ func (l eventLoggerWithResponse[E, R]) Wrap(next func(context.Context, E) (R, er
 			attr = append(attr, slog.Int("status_code", apigwV1Response.StatusCode))
 		}
 
-		// Log when the event completes
 		l.logger.LogAttrs(ctx, l.opts.eventCompletedLevel, l.opts.eventCompletedMsg, attr...)
 
 		// Return response
