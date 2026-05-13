@@ -139,9 +139,9 @@ func Test_eventLoggerNoResponse_Wrap(t *testing.T) {
 			}
 
 			sut := &eventLoggerNoResponse[string]{
-				clock:   clock.NewFixed(now),
-				logger:  slog.New(mHandler),
-				options: tt.options,
+				clock:  clock.NewFixed(now),
+				logger: slog.New(mHandler),
+				opts:   tt.options,
 			}
 			fn := sut.Wrap(func(_ context.Context, event string) error {
 				assert.Equalf(t, tt.wantEvent, event, "Wrap(<func>)(%v, %v)", tt.args.ctx, tt.args.event)
@@ -280,9 +280,9 @@ func Test_eventLoggerWithResponse_Wrap(t *testing.T) {
 			}
 
 			sut := &eventLoggerWithResponse[string, any]{
-				clock:   clock.NewFixed(now),
-				logger:  slog.New(mHandler),
-				options: tt.options,
+				clock:  clock.NewFixed(now),
+				logger: slog.New(mHandler),
+				opts:   tt.options,
 			}
 			fn := sut.Wrap(func(ctx context.Context, event string) (any, error) {
 				assert.Equalf(t, tt.wantEvent, event, "Wrap(<func>)(%v, %v)", tt.args.ctx, tt.args.event)
@@ -298,4 +298,46 @@ func Test_eventLoggerWithResponse_Wrap(t *testing.T) {
 			mHandler.AssertExpectations(t)
 		})
 	}
+}
+
+func TestNewEventLogger_defaultsNotMutatedByOptions(t *testing.T) {
+	// Create a logger with a custom option — previously this mutated defaultEventLoggerOptions,
+	// causing subsequently created loggers to inherit the custom values.
+	_ = NewEventLogger[string](slog.New(new(mockSlogHandler)), WithEventLoggerEventStartedMsg("custom"))
+
+	mHandler := new(mockSlogHandler)
+	mHandler.On("Enabled", mock.Anything, mock.Anything).Return(true)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(func(r slog.Record) bool {
+		return r.Message == defaultEventStartedMsg && r.Level == defaultEventStartedLevel
+	})).Return(nil)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(func(r slog.Record) bool {
+		return r.Message == defaultEventCompletedMsg && r.Level == defaultEventCompletedLevel
+	})).Return(nil)
+
+	sut := NewEventLogger[string](slog.New(mHandler))
+	fn := sut.Wrap(func(_ context.Context, _ string) error { return nil })
+	_ = fn(context.Background(), "test")
+
+	mHandler.AssertExpectations(t)
+}
+
+func TestNewEventLoggerWithResponse_defaultsNotMutatedByOptions(t *testing.T) {
+	// Create a logger with a custom option — previously this mutated defaultEventLoggerOptions,
+	// causing subsequently created loggers to inherit the custom values.
+	_ = NewEventLoggerWithResponse[string, string](slog.New(new(mockSlogHandler)), WithEventLoggerEventStartedMsg("custom"))
+
+	mHandler := new(mockSlogHandler)
+	mHandler.On("Enabled", mock.Anything, mock.Anything).Return(true)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(func(r slog.Record) bool {
+		return r.Message == defaultEventStartedMsg && r.Level == defaultEventStartedLevel
+	})).Return(nil)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(func(r slog.Record) bool {
+		return r.Message == defaultEventCompletedMsg && r.Level == defaultEventCompletedLevel
+	})).Return(nil)
+
+	sut := NewEventLoggerWithResponse[string, string](slog.New(mHandler))
+	fn := sut.Wrap(func(_ context.Context, _ string) (string, error) { return "", nil })
+	_, _ = fn(context.Background(), "test")
+
+	mHandler.AssertExpectations(t)
 }

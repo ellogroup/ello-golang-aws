@@ -52,9 +52,9 @@ func WithEventLoggerEventCompletedLevel(l slog.Level) EventLoggerOption {
 }
 
 type eventLoggerNoResponse[E any] struct {
-	clock   clock.Clock
-	logger  *slog.Logger
-	options *eventLoggerOptions
+	clock  clock.Clock
+	logger *slog.Logger
+	opts   *eventLoggerOptions
 }
 
 // NewEventLogger returns an implementation of NoResponse middleware.
@@ -62,13 +62,14 @@ type eventLoggerNoResponse[E any] struct {
 // The event logger middleware logs the event start and end. The event start log record contains the event and the event
 // end log record contains the duration of the event.
 func NewEventLogger[E any](logger *slog.Logger, options ...EventLoggerOption) NoResponse[E] {
+	opts := defaultEventLoggerOptions
 	l := &eventLoggerNoResponse[E]{
-		clock:   clock.NewSystem(),
-		logger:  logger,
-		options: &defaultEventLoggerOptions,
+		clock:  clock.NewSystem(),
+		logger: logger,
+		opts:   &opts,
 	}
 	for _, option := range options {
-		option(l.options)
+		option(l.opts)
 	}
 	return l
 }
@@ -77,12 +78,12 @@ func (l eventLoggerNoResponse[E]) Wrap(next func(context.Context, E) error) func
 	return func(ctx context.Context, event E) error {
 		// Log when the event starts
 		start := l.clock.Now()
-		l.logger.LogAttrs(ctx, l.options.eventStartedLevel, l.options.eventStartedMsg, slog.Any("event", event))
+		l.logger.LogAttrs(ctx, l.opts.eventStartedLevel, l.opts.eventStartedMsg, slog.Any("event", event))
 
 		err := next(ctx, event)
 
 		// Log when the event completes
-		l.logger.LogAttrs(ctx, l.options.eventCompletedLevel, l.options.eventCompletedMsg, slog.Duration("duration", l.clock.Since(start)))
+		l.logger.LogAttrs(ctx, l.opts.eventCompletedLevel, l.opts.eventCompletedMsg, slog.Duration("duration", l.clock.Since(start)))
 
 		// Return response
 		return err
@@ -90,9 +91,9 @@ func (l eventLoggerNoResponse[E]) Wrap(next func(context.Context, E) error) func
 }
 
 type eventLoggerWithResponse[E, R any] struct {
-	clock   clock.Clock
-	logger  *slog.Logger
-	options *eventLoggerOptions
+	clock  clock.Clock
+	logger *slog.Logger
+	opts   *eventLoggerOptions
 }
 
 // NewEventLoggerWithResponse returns an implementation of WithResponse middleware.
@@ -102,13 +103,14 @@ type eventLoggerWithResponse[E, R any] struct {
 //
 // For API Gateway v1 requests the log record also contains the status code of the response.
 func NewEventLoggerWithResponse[E, R any](logger *slog.Logger, options ...EventLoggerOption) WithResponse[E, R] {
+	opts := defaultEventLoggerOptions
 	l := &eventLoggerWithResponse[E, R]{
-		clock:   clock.NewSystem(),
-		logger:  logger,
-		options: &defaultEventLoggerOptions,
+		clock:  clock.NewSystem(),
+		logger: logger,
+		opts:   &opts,
 	}
 	for _, option := range options {
-		option(l.options)
+		option(l.opts)
 	}
 	return l
 }
@@ -117,7 +119,7 @@ func (l eventLoggerWithResponse[E, R]) Wrap(next func(context.Context, E) (R, er
 	return func(ctx context.Context, event E) (R, error) {
 		// Log when the event starts
 		start := l.clock.Now()
-		l.logger.LogAttrs(ctx, l.options.eventStartedLevel, l.options.eventStartedMsg, slog.Any("event", event))
+		l.logger.LogAttrs(ctx, l.opts.eventStartedLevel, l.opts.eventStartedMsg, slog.Any("event", event))
 
 		response, err := next(ctx, event)
 
@@ -132,7 +134,7 @@ func (l eventLoggerWithResponse[E, R]) Wrap(next func(context.Context, E) (R, er
 		}
 
 		// Log when the event completes
-		l.logger.LogAttrs(ctx, l.options.eventCompletedLevel, l.options.eventCompletedMsg, attr...)
+		l.logger.LogAttrs(ctx, l.opts.eventCompletedLevel, l.opts.eventCompletedMsg, attr...)
 
 		// Return response
 		return response, err
