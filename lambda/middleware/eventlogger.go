@@ -28,12 +28,6 @@ var defaultEventLoggerOptions = eventLoggerOptions{
 	eventCompletedLevel: defaultEventCompletedLevel,
 }
 
-type eventLoggerNoResponse[E any] struct {
-	clock   clock.Clock
-	logger  *slog.Logger
-	options *eventLoggerOptions
-}
-
 type EventLoggerOption func(*eventLoggerOptions)
 
 func WithEventLoggerEventStartedMsg(msg string) EventLoggerOption {
@@ -55,6 +49,12 @@ func WithEventLoggerEventCompletedLevel(l slog.Level) EventLoggerOption {
 	return func(e *eventLoggerOptions) {
 		e.eventCompletedLevel = l
 	}
+}
+
+type eventLoggerNoResponse[E any] struct {
+	clock   clock.Clock
+	logger  *slog.Logger
+	options *eventLoggerOptions
 }
 
 // NewEventLogger returns an implementation of NoResponse middleware.
