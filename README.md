@@ -68,28 +68,40 @@ github.com/ellogroup/ello-golang-ctx/logctx package. This includes at the very l
 For API Gateway v1 requests the context also includes the method, domain and path of the request. The response is also 
 updated to include the request id within the header `x-request-id`.
 
-### Metrics
+### Event Logger
 
-The metrics middleware outputs the request start and end. The request start output contains the event and the request 
-end output contains the duration of the request.
+The event logger middleware logs the event start and end using a `*slog.Logger`. The start log record contains the
+event and the end log record contains the duration of the request.
 
-For API Gateway v1 requests the output also contains the status code of the response.
+For API Gateway v1 requests the end log record also contains the status code of the response.
 
-Outputters need to implement the `metrics.Outputter` interface from the github.com/ellogroup/ello-golang-metrics/metrics
-package.
+The log messages and levels can be customised using functional options:
+
+```go
+logger := slog.Default()
+
+middleware.NewEventLogger[E](logger)
+
+middleware.NewEventLogger[E](logger,
+    middleware.WithEventLoggerEventStartedMsg[E]("Request started"),
+    middleware.WithEventLoggerEventCompletedMsg[E]("Request complete"),
+    middleware.WithEventLoggerEventStartedLevel[E](slog.LevelInfo),
+    middleware.WithEventLoggerEventCompletedLevel[E](slog.LevelInfo),
+)
+```
 
 ### Common
 
 There are a selection of common middleware creators for different AWS events.
 
 ```go
-// outputter implements metrics.Outputter
+logger := slog.Default()
 
-middleswares := middleware.CommonS3(outputter)
+middleswares := middleware.CommonS3(logger)
 
-middleswares := middleware.CommonSNS(outputter)
+middleswares := middleware.CommonSNS(logger)
 
-middleswares := middleware.CommonSQS(outputter)
+middleswares := middleware.CommonSQS(logger)
 
-middleswares := middleware.CommonAPIGatewayV1(outputter)
+middleswares := middleware.CommonAPIGatewayV1(logger)
 ```

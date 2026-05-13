@@ -3,7 +3,7 @@ package middleware
 import (
 	"context"
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/ellogroup/ello-golang-metrics/metrics"
+	"log/slog"
 )
 
 // NoResponse [E any] interface should be implemented for middleware of handlers of event type E that do not return a
@@ -28,19 +28,19 @@ type WithResponse[E, R any] interface {
 
 // Common [E any] returns a slice of common middleware for handlers of event type E that do not return a
 // response.
-func Common[E any](outputter metrics.Outputter) []NoResponse[E] {
+func Common[E any](logger *slog.Logger) []NoResponse[E] {
 	return []NoResponse[E]{
 		NewContext[E](),
-		NewMetrics[E](outputter),
+		NewEventLogger[E](logger),
 	}
 }
 
 // CommonWithResponse [E, R any] returns a slice of common middleware for handlers of event type E that return a
 // response type R.
-func CommonWithResponse[E, R any](outputter metrics.Outputter) []WithResponse[E, R] {
+func CommonWithResponse[E, R any](logger *slog.Logger) []WithResponse[E, R] {
 	return []WithResponse[E, R]{
 		NewContextWithResponse[E, R](),
-		NewMetricsWithResponse[E, R](outputter),
+		NewEventLoggerWithResponse[E, R](logger),
 	}
 }
 
@@ -49,28 +49,28 @@ func CommonWithResponse[E, R any](outputter metrics.Outputter) []WithResponse[E,
 type S3 []NoResponse[events.S3Event]
 
 // CommonS3 returns a slice of common middleware for handlers of events.S3Event
-func CommonS3(outputter metrics.Outputter) S3 {
-	return Common[events.S3Event](outputter)
+func CommonS3(logger *slog.Logger) S3 {
+	return Common[events.S3Event](logger)
 }
 
 type SNS []NoResponse[events.SNSEvent]
 
 // CommonSNS returns a slice of common middleware for handlers of events.SNSEvent
-func CommonSNS(outputter metrics.Outputter) SNS {
-	return Common[events.SNSEvent](outputter)
+func CommonSNS(logger *slog.Logger) SNS {
+	return Common[events.SNSEvent](logger)
 }
 
 type SQS []NoResponse[events.SQSEvent]
 
 // CommonSQS returns a slice of common middleware for handlers of events.SQSEvent
-func CommonSQS(outputter metrics.Outputter) SQS {
-	return Common[events.SQSEvent](outputter)
+func CommonSQS(logger *slog.Logger) SQS {
+	return Common[events.SQSEvent](logger)
 }
 
 type APIGatewayV1 []WithResponse[events.APIGatewayProxyRequest, events.APIGatewayProxyResponse]
 
 // CommonAPIGatewayV1 returns a slice of common middleware for handlers of events.APIGatewayProxyRequest that return
 // events.APIGatewayProxyResponse
-func CommonAPIGatewayV1(outputter metrics.Outputter) APIGatewayV1 {
-	return CommonWithResponse[events.APIGatewayProxyRequest, events.APIGatewayProxyResponse](outputter)
+func CommonAPIGatewayV1(logger *slog.Logger) APIGatewayV1 {
+	return CommonWithResponse[events.APIGatewayProxyRequest, events.APIGatewayProxyResponse](logger)
 }
