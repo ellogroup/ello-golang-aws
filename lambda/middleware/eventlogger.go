@@ -19,6 +19,7 @@ type eventLoggerOptions struct {
 	eventCompletedMsg   string
 	eventStartedLevel   slog.Level
 	eventCompletedLevel slog.Level
+	sanitizer           func(any) any
 }
 
 var defaultEventLoggerOptions = eventLoggerOptions{
@@ -51,6 +52,24 @@ func WithEventLoggerEventCompletedLevel(l slog.Level) EventLoggerOption {
 	}
 }
 
+// WithEventLoggerSanitizer sets a custom function to transform the event before it is logged.
+// When provided, it replaces the default built-in HTTP header redaction. To compose both, call
+// RedactHTTPEvent inside your sanitizer function.
+func WithEventLoggerSanitizer[E any](fn func(E) any) EventLoggerOption {
+	return func(opts *eventLoggerOptions) {
+		opts.sanitizer = func(e any) any {
+			return fn(e.(E))
+		}
+	}
+}
+
+func sanitizeEvent(opts *eventLoggerOptions, event any) any {
+	if opts.sanitizer != nil {
+		return opts.sanitizer(event)
+	}
+	return RedactHTTPEvent(event)
+}
+
 type eventLoggerNoResponse[E any] struct {
 	clock  clock.Clock
 	logger *slog.Logger
@@ -78,7 +97,7 @@ func (l eventLoggerNoResponse[E]) Wrap(next func(context.Context, E) error) func
 	return func(ctx context.Context, event E) error {
 		// Log when the event starts
 		start := l.clock.Now()
-		l.logger.LogAttrs(ctx, l.opts.eventStartedLevel, l.opts.eventStartedMsg, slog.Any("event", event))
+		l.logger.LogAttrs(ctx, l.opts.eventStartedLevel, l.opts.eventStartedMsg, slog.Any("event", sanitizeEvent(l.opts, event)))
 
 		err := next(ctx, event)
 
@@ -119,7 +138,7 @@ func (l eventLoggerWithResponse[E, R]) Wrap(next func(context.Context, E) (R, er
 	return func(ctx context.Context, event E) (R, error) {
 		// Log when the event starts
 		start := l.clock.Now()
-		l.logger.LogAttrs(ctx, l.opts.eventStartedLevel, l.opts.eventStartedMsg, slog.Any("event", event))
+		l.logger.LogAttrs(ctx, l.opts.eventStartedLevel, l.opts.eventStartedMsg, slog.Any("event", sanitizeEvent(l.opts, event)))
 
 		response, err := next(ctx, event)
 

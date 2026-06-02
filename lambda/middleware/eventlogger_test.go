@@ -300,6 +300,69 @@ func Test_eventLoggerWithResponse_Wrap(t *testing.T) {
 	}
 }
 
+func Test_eventLoggerNoResponse_Wrap_redactsHTTPEventByDefault(t *testing.T) {
+	now := time.Date(2025, 1, 2, 3, 4, 5, 6, time.UTC)
+	event := events.APIGatewayProxyRequest{
+		Path:    "/test",
+		Headers: map[string]string{"Authorization": "Bearer secret", "Content-Type": "application/json"},
+	}
+	wantLogged := events.APIGatewayProxyRequest{
+		Path:    "/test",
+		Headers: map[string]string{"Authorization": redactedValue, "Content-Type": "application/json"},
+	}
+
+	mHandler := new(mockSlogHandler)
+	mHandler.On("Enabled", mock.Anything, mock.Anything).Return(true)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(matchRecord(
+		defaultEventStartedMsg, slog.LevelInfo, []slog.Attr{slog.Any("event", wantLogged)},
+	))).Return(nil)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(matchRecord(
+		defaultEventCompletedMsg, slog.LevelInfo, []slog.Attr{slog.Duration("duration", time.Duration(0))},
+	))).Return(nil)
+
+	sut := &eventLoggerNoResponse[events.APIGatewayProxyRequest]{
+		clock:  clock.NewFixed(now),
+		logger: slog.New(mHandler),
+		opts:   &defaultEventLoggerOptions,
+	}
+	fn := sut.Wrap(func(_ context.Context, e events.APIGatewayProxyRequest) error {
+		assert.Equal(t, event, e, "original event must not be modified")
+		return nil
+	})
+	_ = fn(context.Background(), event)
+
+	mHandler.AssertExpectations(t)
+}
+
+func Test_eventLoggerNoResponse_Wrap_customSanitizer(t *testing.T) {
+	now := time.Date(2025, 1, 2, 3, 4, 5, 6, time.UTC)
+	event := events.APIGatewayProxyRequest{Path: "/test"}
+
+	mHandler := new(mockSlogHandler)
+	mHandler.On("Enabled", mock.Anything, mock.Anything).Return(true)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(matchRecord(
+		defaultEventStartedMsg, slog.LevelInfo, []slog.Attr{slog.Any("event", "sanitized")},
+	))).Return(nil)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(matchRecord(
+		defaultEventCompletedMsg, slog.LevelInfo, []slog.Attr{slog.Duration("duration", time.Duration(0))},
+	))).Return(nil)
+
+	opts := defaultEventLoggerOptions
+	WithEventLoggerSanitizer(func(e events.APIGatewayProxyRequest) any {
+		return "sanitized"
+	})(&opts)
+
+	sut := &eventLoggerNoResponse[events.APIGatewayProxyRequest]{
+		clock:  clock.NewFixed(now),
+		logger: slog.New(mHandler),
+		opts:   &opts,
+	}
+	fn := sut.Wrap(func(_ context.Context, _ events.APIGatewayProxyRequest) error { return nil })
+	_ = fn(context.Background(), event)
+
+	mHandler.AssertExpectations(t)
+}
+
 func TestNewEventLogger_defaultsNotMutatedByOptions(t *testing.T) {
 	// Create a logger with a custom option — previously this mutated defaultEventLoggerOptions,
 	// causing subsequently created loggers to inherit the custom values.
