@@ -198,14 +198,14 @@ func TestRedactHTTPEvent_doesNotMutateOriginal(t *testing.T) {
 	assert.Equal(t, "Bearer secret", original.Headers["Authorization"])
 }
 
-func TestNewRedactor_Redact(t *testing.T) {
+func TestNewRedactor_Sanitize(t *testing.T) {
 	event := events.APIGatewayProxyRequest{
 		Headers: map[string]string{"Authorization": "Bearer secret"},
 		Body:    `{"status":"ok"}`,
 	}
 
 	t.Run("default options match RedactHTTPEvent", func(t *testing.T) {
-		assert.Equal(t, RedactHTTPEvent(event), NewRedactor().Redact(event))
+		assert.Equal(t, RedactHTTPEvent(event), NewRedactor().Sanitize(event))
 	})
 
 	t.Run("WithBodyNotRedacted preserves body", func(t *testing.T) {
@@ -213,15 +213,19 @@ func TestNewRedactor_Redact(t *testing.T) {
 			Headers: map[string]string{"Authorization": redactedValue},
 			Body:    `{"status":"ok"}`,
 		}
-		assert.Equal(t, want, NewRedactor(WithBodyNotRedacted()).Redact(event))
+		assert.Equal(t, want, NewRedactor(WithBodyNotRedacted()).Sanitize(event))
 	})
 
-	t.Run("options are applied once at construction, not per Redact call", func(t *testing.T) {
+	t.Run("options are applied once at construction, not per Sanitize call", func(t *testing.T) {
 		redactor := NewRedactor(WithBodyNotRedacted())
 		for range 3 {
-			got, ok := redactor.Redact(event).(events.APIGatewayProxyRequest)
+			got, ok := redactor.Sanitize(event).(events.APIGatewayProxyRequest)
 			assert.True(t, ok)
 			assert.Equal(t, `{"status":"ok"}`, got.Body)
 		}
+	})
+
+	t.Run("implements Sanitizer", func(_ *testing.T) {
+		var _ Sanitizer = NewRedactor()
 	})
 }

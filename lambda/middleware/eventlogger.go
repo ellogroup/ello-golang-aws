@@ -62,21 +62,46 @@ func WithEventLoggerEventCompletedLevel(l slog.Level) EventLoggerOption {
 	}
 }
 
-// WithEventLoggerSanitizer sets a custom function to transform the event before it is logged.
-// When provided, it replaces the default built-in HTTP header and body redaction. To compose
-// both, call RedactHTTPEvent (default options) or a Redactor built with NewRedactor
-// (non-default options, e.g. WithBodyNotRedacted - construct it once outside this function,
-// not inside it, so options are applied once rather than on every event) inside your sanitizer
-// function.
-func WithEventLoggerSanitizer[E any](fn func(E) any) EventLoggerOption {
-	return func(opts *eventLoggerOptions) {
-		opts.sanitizer = func(e any) any {
-			typed, ok := e.(E)
-			if !ok {
-				return e
-			}
-			return fn(typed)
+// Sanitizer transforms an event before it is logged. Implement this to supply a custom
+// sanitizer to WithEventLoggerSanitizer - *Redactor (see NewRedactor) already implements it,
+// so it can be passed directly.
+type Sanitizer interface {
+	Sanitize(event any) any
+}
+
+// SanitizerFunc adapts a plain func(any) any to satisfy Sanitizer.
+type SanitizerFunc func(event any) any
+
+// Sanitize calls f(event).
+func (f SanitizerFunc) Sanitize(event any) any {
+	return f(event)
+}
+
+// TypedSanitizerFunc adapts a func over a specific event type E into a Sanitizer, for the
+// common case of writing a one-off sanitizer for a single, known event type without a checked
+// type assertion at every call site. If the event passed to Sanitize isn't of type E, it is
+// returned unchanged rather than passed to fn.
+func TypedSanitizerFunc[E any](fn func(E) any) Sanitizer {
+	return SanitizerFunc(func(event any) any {
+		typed, ok := event.(E)
+		if !ok {
+			return event
 		}
+		return fn(typed)
+	})
+}
+
+// WithEventLoggerSanitizer sets a Sanitizer to transform the event before it is logged. When
+// provided, it replaces the default built-in HTTP header and body redaction. To compose both,
+// call RedactHTTPEvent (default options) or NewRedactor (non-default options, e.g.
+// WithBodyNotRedacted) from inside your own Sanitizer implementation.
+//
+// Pass a *Redactor directly for the built-in redaction behaviour with custom options, a
+// TypedSanitizerFunc for a one-off closure over a known event type, or your own type
+// implementing Sanitizer for anything more involved.
+func WithEventLoggerSanitizer(s Sanitizer) EventLoggerOption {
+	return func(opts *eventLoggerOptions) {
+		opts.sanitizer = s.Sanitize
 	}
 }
 

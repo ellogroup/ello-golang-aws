@@ -390,9 +390,9 @@ func Test_eventLoggerNoResponse_Wrap_customSanitizer(t *testing.T) {
 	))).Return(nil)
 
 	opts := defaultEventLoggerOptions
-	WithEventLoggerSanitizer(func(_ events.APIGatewayProxyRequest) any {
+	WithEventLoggerSanitizer(TypedSanitizerFunc(func(_ events.APIGatewayProxyRequest) any {
 		return "sanitized"
-	})(&opts)
+	}))(&opts)
 
 	sut := &eventLoggerNoResponse[events.APIGatewayProxyRequest]{
 		clock:  clock.NewFixed(now),
@@ -445,4 +445,39 @@ func TestNewEventLoggerWithResponse_defaultsNotMutatedByOptions(t *testing.T) {
 	_, _ = fn(context.Background(), "test")
 
 	mHandler.AssertExpectations(t)
+}
+
+func TestSanitizerFunc_Sanitize(t *testing.T) {
+	var called any
+	f := SanitizerFunc(func(event any) any {
+		called = event
+		return "sanitized"
+	})
+
+	got := f.Sanitize("original")
+
+	assert.Equal(t, "sanitized", got)
+	assert.Equal(t, "original", called)
+}
+
+func TestTypedSanitizerFunc(t *testing.T) {
+	t.Run("matching type is passed to fn", func(t *testing.T) {
+		s := TypedSanitizerFunc(func(e events.APIGatewayProxyRequest) any {
+			return e.Path
+		})
+
+		got := s.Sanitize(events.APIGatewayProxyRequest{Path: "/test"})
+
+		assert.Equal(t, "/test", got)
+	})
+
+	t.Run("mismatched type is returned unchanged", func(t *testing.T) {
+		s := TypedSanitizerFunc(func(_ events.APIGatewayProxyRequest) any {
+			return "should not be called"
+		})
+
+		got := s.Sanitize("not an APIGatewayProxyRequest")
+
+		assert.Equal(t, "not an APIGatewayProxyRequest", got)
+	})
 }

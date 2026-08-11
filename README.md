@@ -96,24 +96,30 @@ middleware.NewEventLogger[E](logger,
     middleware.WithEventLoggerEventCompletedLevel(slog.LevelInfo),
 )
 
+// WithEventLoggerSanitizer takes a Sanitizer - construct it once, outside the middleware
+// chain, so any options it holds are applied once rather than re-processed on every event.
+
 // A route that is genuinely public and bodyless-safe to log in full can preserve the body.
-// Construct the Redactor once, outside the sanitizer - options are applied at construction,
-// not re-processed on every event.
-redactor := middleware.NewRedactor(middleware.WithBodyNotRedacted())
+// *Redactor implements Sanitizer, so it can be passed directly:
 middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
-    middleware.WithEventLoggerSanitizer(func(e events.APIGatewayProxyRequest) any {
-        return redactor.Redact(e)
-    }),
+    middleware.WithEventLoggerSanitizer(middleware.NewRedactor(middleware.WithBodyNotRedacted())),
 )
 
-// Custom sanitizer — replaces the default header/body redaction entirely.
-// Call middleware.RedactHTTPEvent inside your sanitizer to apply built-in redaction as well.
+// A one-off closure over a known event type - TypedSanitizerFunc adapts it to Sanitizer:
 middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
-    middleware.WithEventLoggerSanitizer(func(e events.APIGatewayProxyRequest) any {
+    middleware.WithEventLoggerSanitizer(middleware.TypedSanitizerFunc(func(e events.APIGatewayProxyRequest) any {
         redacted := middleware.RedactHTTPEvent(e)
         // additional custom logic...
         return redacted
-    }),
+    })),
+)
+
+// Anything more involved - implement Sanitizer yourself and pass it directly:
+type myCustomSanitizer struct{ /* ... */ }
+func (s *myCustomSanitizer) Sanitize(event any) any { /* ... */ return event }
+
+middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
+    middleware.WithEventLoggerSanitizer(&myCustomSanitizer{}),
 )
 ```
 
