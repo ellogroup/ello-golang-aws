@@ -1,0 +1,65 @@
+version: "2"
+
+linters:
+  enable:
+    - contextcheck             # pass context where available
+    - embeddedstructfieldcheck # embedded fields at top of struct, separated by blank line
+    - errname                  # sentinel errors prefixed Err, error types suffixed Error
+    - errorlint                # correct use of errors.Is/As with wrapped errors
+    - forcetypeassert          # flag unchecked type assertions
+    - funcorder                # functions ordered: types, constructors, then methods
+    - gochecknoinits           # avoid init() functions
+    - noctx                    # http.NewRequest must use context variant
+    - predeclared              # avoid shadowing built-in identifiers
+    - prealloc                 # suggest pre-allocated slices where possible
+    - revive                   # general style — rules mirror .ai-context/teams/backend/conventions/go.md
+    - sloglint                 # consistent slog usage — this repo's event-logger middleware is built on log/slog
+  disable:
+    - misspell                 # British English is a review-only convention; misspell would require locale config
+  settings:
+    revive:
+      severity: warning
+      enable-all-rules: false
+      # Rule selection mirrors the conventions in
+      # .ai-context/teams/backend/conventions/go.md — each rule enforces a
+      # documented convention or a long-standing Go idiom that the
+      # conventions implicitly assume.
+      rules:
+        # === Naming and documentation ===
+        - name: var-naming             # PascalCase exported, camelCase unexported, acronyms uppercased — go.md §Naming
+        - name: exported               # GoDoc on all exported symbols — go.md §GoDoc comments
+        - name: receiver-naming        # consistent short receiver names, not `this` or `self`
+        - name: time-naming            # duration/time variables named with units where helpful
+
+        # === Errors ===
+        - name: error-naming           # Err prefix on sentinels, Error suffix on types — go.md §Errors
+        - name: error-return           # error is the last return value
+        - name: error-strings          # lowercase first letter, no trailing punctuation
+        - name: errorf                 # fmt.Errorf rather than errors.New(fmt.Sprintf(...))
+
+        # === Imports and unused code ===
+        - name: redundant-import-alias # do not alias when path basename already matches
+        - name: import-shadowing       # imports must not shadow predeclared identifiers
+        - name: unused-parameter       # flag unused params; use `_` to silence intentionally
+        - name: unused-receiver        # unused method receiver usually means it should be a function
+        - name: redefines-builtin-id   # do not redeclare built-in names (error, string, len, ...) — go.md §Naming
+
+        # === Control flow and idioms ===
+        - name: early-return           # prefer early returns over deep nesting
+        - name: if-return              # collapse `if cond { return x } return y`
+        - name: indent-error-flow      # `if err != nil` blocks should return
+        - name: superfluous-else       # drop unnecessary else after a returning if
+        - name: range-val-in-closure   # range loop vars captured by closures must be re-bound
+        - name: unconditional-recursion # catch infinite recursion
+        - name: unreachable-code       # code after a terminating statement is dead
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      # Pushes github.com/ellogroup/... into its own group, giving the
+      # three-group layout mandated by ai-context go.md §Formatting.
+      local-prefixes:
+        - github.com/ellogroup
