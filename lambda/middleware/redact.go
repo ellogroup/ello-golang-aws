@@ -18,7 +18,7 @@ type redactOptions struct {
 	bodyNotRedacted bool
 }
 
-// RedactOption configures RedactHTTPEvent.
+// RedactOption configures a Redactor.
 type RedactOption func(*redactOptions)
 
 // WithBodyNotRedacted leaves the event's Body field untouched instead of redacting it. Use this
@@ -30,48 +30,74 @@ func WithBodyNotRedacted() RedactOption {
 	}
 }
 
-// RedactHTTPEvent returns a sanitized copy of known HTTP Lambda event types with sensitive headers
-// (Authorization, Cookie, X-Api-Key) and the request Body replaced with [REDACTED]. Non-HTTP event
-// types are returned unchanged. Pass WithBodyNotRedacted() to preserve the body for a route that is
-// known not to carry sensitive data.
-// It can be called inside a WithEventLoggerSanitizer function to compose built-in redaction with custom logic.
-func RedactHTTPEvent(event any, opts ...RedactOption) any {
+// Redactor redacts sensitive headers and (by default) the request body from known HTTP Lambda
+// event types. Construct one with NewRedactor when you need non-default options - options are
+// applied once at construction, not re-processed on every call to Redact.
+type Redactor struct {
+	opts redactOptions
+}
+
+// NewRedactor constructs a Redactor with the given options applied.
+func NewRedactor(opts ...RedactOption) *Redactor {
 	o := redactOptions{}
 	for _, opt := range opts {
 		opt(&o)
 	}
+	return &Redactor{opts: o}
+}
+
+// Redact returns a sanitized copy of known HTTP Lambda event types with sensitive headers
+// (Authorization, Cookie, X-Api-Key) and (unless configured otherwise) the request Body replaced
+// with [REDACTED]. Non-HTTP event types are returned unchanged.
+func (r *Redactor) Redact(event any) any {
 	switch e := event.(type) {
 	case events.APIGatewayProxyRequest:
 		e.Headers = redactHeaders(e.Headers)
 		e.MultiValueHeaders = redactMultiValueHeaders(e.MultiValueHeaders)
-		e.Body = redactBody(e.Body, o)
+		e.Body = redactBody(e.Body, r.opts)
 		return e
 	case events.APIGatewayV2HTTPRequest:
 		e.Headers = redactHeaders(e.Headers)
 		if len(e.Cookies) > 0 {
 			e.Cookies = []string{redactedValue}
 		}
-		e.Body = redactBody(e.Body, o)
+		e.Body = redactBody(e.Body, r.opts)
 		return e
 	case events.ALBTargetGroupRequest:
 		e.Headers = redactHeaders(e.Headers)
 		e.MultiValueHeaders = redactMultiValueHeaders(e.MultiValueHeaders)
-		e.Body = redactBody(e.Body, o)
+		e.Body = redactBody(e.Body, r.opts)
 		return e
 	case events.LambdaFunctionURLRequest:
 		e.Headers = redactHeaders(e.Headers)
 		if len(e.Cookies) > 0 {
 			e.Cookies = []string{redactedValue}
 		}
-		e.Body = redactBody(e.Body, o)
+		e.Body = redactBody(e.Body, r.opts)
 		return e
 	case events.APIGatewayWebsocketProxyRequest:
 		e.Headers = redactHeaders(e.Headers)
 		e.MultiValueHeaders = redactMultiValueHeaders(e.MultiValueHeaders)
-		e.Body = redactBody(e.Body, o)
+		e.Body = redactBody(e.Body, r.opts)
 		return e
 	}
 	return event
+}
+
+// defaultRedactor applies default options only (redact headers and body). Shared by
+// RedactHTTPEvent so the common case doesn't allocate a new Redactor per call.
+var defaultRedactor = NewRedactor()
+
+// RedactHTTPEvent returns a sanitized copy of known HTTP Lambda event types with sensitive
+// headers (Authorization, Cookie, X-Api-Key) and the request Body replaced with [REDACTED].
+// Non-HTTP event types are returned unchanged. It can be called inside a
+// WithEventLoggerSanitizer function to compose built-in redaction with custom logic.
+//
+// This always applies default options. For non-default behaviour (e.g. WithBodyNotRedacted),
+// construct a Redactor with NewRedactor instead - options are applied once at construction,
+// not on every event.
+func RedactHTTPEvent(event any) any {
+	return defaultRedactor.Redact(event)
 }
 
 func redactBody(body string, o redactOptions) string {

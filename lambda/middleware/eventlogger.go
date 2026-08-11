@@ -63,8 +63,11 @@ func WithEventLoggerEventCompletedLevel(l slog.Level) EventLoggerOption {
 }
 
 // WithEventLoggerSanitizer sets a custom function to transform the event before it is logged.
-// When provided, it replaces the default built-in HTTP header and body redaction. To compose both,
-// call RedactHTTPEvent inside your sanitizer function.
+// When provided, it replaces the default built-in HTTP header and body redaction. To compose
+// both, call RedactHTTPEvent (default options) or a Redactor built with NewRedactor
+// (non-default options, e.g. WithBodyNotRedacted - construct it once outside this function,
+// not inside it, so options are applied once rather than on every event) inside your sanitizer
+// function.
 func WithEventLoggerSanitizer[E any](fn func(E) any) EventLoggerOption {
 	return func(opts *eventLoggerOptions) {
 		opts.sanitizer = func(e any) any {

@@ -96,10 +96,13 @@ middleware.NewEventLogger[E](logger,
     middleware.WithEventLoggerEventCompletedLevel(slog.LevelInfo),
 )
 
-// A route that is genuinely public and bodyless-safe to log in full can preserve the body:
+// A route that is genuinely public and bodyless-safe to log in full can preserve the body.
+// Construct the Redactor once, outside the sanitizer - options are applied at construction,
+// not re-processed on every event.
+redactor := middleware.NewRedactor(middleware.WithBodyNotRedacted())
 middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
     middleware.WithEventLoggerSanitizer(func(e events.APIGatewayProxyRequest) any {
-        return middleware.RedactHTTPEvent(e, middleware.WithBodyNotRedacted())
+        return redactor.Redact(e)
     }),
 )
 
