@@ -1,27 +1,24 @@
-DOCKER_IMG_TAGGED = ellogroup/ello-golang-aws:latest
-DOCKER_RUN = docker run --rm -it --platform linux/amd64 $(DOCKER_IMG_TAGGED)
+DOCKER_RUN = docker run --rm -i --platform linux/amd64 -v $(CURDIR):/src -w /src
+GO_DEV_TOOLS = diningclub/golang-dev-tools:latest
 
 .PHONY: build-format-test
 build-format-test: build format test
 
 .PHONY: build
 build:
-	docker build --platform linux/amd64 -t $(DOCKER_IMG_TAGGED) .
-	docker run --rm -it --platform linux/amd64 -v $(CURDIR)/go.mod:/src/app/go.mod -v $(CURDIR)/go.sum:/src/app/go.sum $(DOCKER_IMG_TAGGED) go mod tidy
+	$(DOCKER_RUN) $(GO_DEV_TOOLS) go build ./...
 
 .PHONY: format
 format:
-	$(DOCKER_RUN) gofmt -w ./
+	$(DOCKER_RUN) $(GO_DEV_TOOLS) sh -c "gofmt -w ./ && go fix ./... && goimports -local github.com/ellogroup -w ./ && go mod tidy"
 
 .PHONY: test
 test: static-tests unit-tests
 
 .PHONY: static-tests
 static-tests:
-	$(DOCKER_RUN) golangci-lint run -v
-	$(DOCKER_RUN) gosec ./...
-	$(DOCKER_RUN) govulncheck ./...
+	$(DOCKER_RUN) $(GO_DEV_TOOLS) sh -c "golangci-lint run -v && gosec ./... && govulncheck ./..."
 
 .PHONY: unit-tests
 unit-tests:
-	$(DOCKER_RUN) go test -v -cover ./...
+	$(DOCKER_RUN) $(GO_DEV_TOOLS) go test -v -cover ./...
