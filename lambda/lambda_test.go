@@ -3,10 +3,12 @@ package lambda
 import (
 	"context"
 	"errors"
-	"github.com/ellogroup/ello-golang-aws/lambda/middleware"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
+
+	"github.com/ellogroup/ello-golang-aws/lambda/middleware"
 )
 
 type mockHandler[E any] struct {

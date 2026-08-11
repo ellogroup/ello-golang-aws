@@ -3,11 +3,13 @@ package middleware
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambdacontext"
-	"github.com/ellogroup/ello-golang-ctx/v2/logctx"
 	"github.com/stretchr/testify/assert"
-	"testing"
+
+	"github.com/ellogroup/ello-golang-ctx/v2/logctx"
 )
 
 func TestContext_Wrap(t *testing.T) {

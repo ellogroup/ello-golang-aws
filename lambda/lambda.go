@@ -2,7 +2,9 @@ package lambda
 
 import (
 	"context"
+
 	"github.com/aws/aws-lambda-go/lambda"
+
 	"github.com/ellogroup/ello-golang-aws/lambda/middleware"
 )
 

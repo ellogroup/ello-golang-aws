@@ -2,8 +2,9 @@ package middleware
 
 import (
 	"context"
-	"github.com/aws/aws-lambda-go/events"
 	"log/slog"
+
+	"github.com/aws/aws-lambda-go/events"
 )
 
 // NoResponse [E any] interface should be implemented for middleware of handlers of event type E that do not return a
