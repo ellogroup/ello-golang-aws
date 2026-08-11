@@ -129,3 +129,20 @@ middleswares := middleware.CommonSQS(logger)
 
 middleswares := middleware.CommonAPIGatewayV1(logger)
 ```
+
+## Development
+
+```shell
+make build              # go build ./... — compiles the whole module
+make format             # gofmt + go fix + goimports -local + go mod tidy
+make static-tests       # golangci-lint + gosec + govulncheck
+make unit-tests         # go test -v -cover ./...
+make build-format-test  # all of the above
+```
+
+This repo includes the shared Ello AI-agent tooling (`AGENTS.md`, `CLAUDE.md`,
+`.ai-context/`). `.ai-context` is a git submodule, auto-initialised by
+`make build`/`make static-tests`/`make unit-tests` (skipped in CI). To pull the
+latest shared standards/conventions/skills, run `make sync-ai-context`. To
+seed `.agents/memory/` (progress, decisions, notes, tech debt) for a fresh
+session, run `make init-memory`.
