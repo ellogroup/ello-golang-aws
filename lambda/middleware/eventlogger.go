@@ -31,23 +31,31 @@ var defaultEventLoggerOptions = eventLoggerOptions{
 	eventCompletedLevel: defaultEventCompletedLevel,
 }
 
+// EventLoggerOption configures NewEventLogger/NewEventLoggerWithResponse.
 type EventLoggerOption func(*eventLoggerOptions)
 
+// WithEventLoggerEventStartedMsg sets the log message used for the event-started record.
 func WithEventLoggerEventStartedMsg(msg string) EventLoggerOption {
 	return func(e *eventLoggerOptions) {
 		e.eventStartedMsg = msg
 	}
 }
+
+// WithEventLoggerEventCompletedMsg sets the log message used for the event-completed record.
 func WithEventLoggerEventCompletedMsg(msg string) EventLoggerOption {
 	return func(e *eventLoggerOptions) {
 		e.eventCompletedMsg = msg
 	}
 }
+
+// WithEventLoggerEventStartedLevel sets the slog level used for the event-started record.
 func WithEventLoggerEventStartedLevel(l slog.Level) EventLoggerOption {
 	return func(e *eventLoggerOptions) {
 		e.eventStartedLevel = l
 	}
 }
+
+// WithEventLoggerEventCompletedLevel sets the slog level used for the event-completed record.
 func WithEventLoggerEventCompletedLevel(l slog.Level) EventLoggerOption {
 	return func(e *eventLoggerOptions) {
 		e.eventCompletedLevel = l
@@ -60,7 +68,11 @@ func WithEventLoggerEventCompletedLevel(l slog.Level) EventLoggerOption {
 func WithEventLoggerSanitizer[E any](fn func(E) any) EventLoggerOption {
 	return func(opts *eventLoggerOptions) {
 		opts.sanitizer = func(e any) any {
-			return fn(e.(E))
+			typed, ok := e.(E)
+			if !ok {
+				return e
+			}
+			return fn(typed)
 		}
 	}
 }

@@ -244,7 +244,7 @@ func Test_contextFromEvent(t *testing.T) {
 func Test_transformResponse(t *testing.T) {
 	type args[R any] struct {
 		response  R
-		requestId string
+		requestID string
 	}
 	type testCase[R any] struct {
 		name string
@@ -256,7 +256,7 @@ func Test_transformResponse(t *testing.T) {
 			name: "string response, returns string unmodified",
 			args: args[any]{
 				response:  "test-response",
-				requestId: "test-request-id",
+				requestID: "test-request-id",
 			},
 			want: "test-response",
 		},
@@ -264,14 +264,14 @@ func Test_transformResponse(t *testing.T) {
 			name: "apigw response, returns apigw response with request id header",
 			args: args[any]{
 				response:  events.APIGatewayProxyResponse{Headers: map[string]string{}},
-				requestId: "test-request-id",
+				requestID: "test-request-id",
 			},
 			want: events.APIGatewayProxyResponse{Headers: map[string]string{"x-request-id": "test-request-id"}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, transformResponse(tt.args.response, tt.args.requestId), "transformResponse(%v, %v)", tt.args.response, tt.args.requestId)
+			assert.Equalf(t, tt.want, transformResponse(tt.args.response, tt.args.requestID), "transformResponse(%v, %v)", tt.args.response, tt.args.requestID)
 		})
 	}
 }

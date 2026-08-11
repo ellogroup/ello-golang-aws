@@ -28,11 +28,13 @@ func (m *mockSlogHandler) Handle(ctx context.Context, r slog.Record) error {
 }
 
 func (m *mockSlogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return m.Called(attrs).Get(0).(slog.Handler)
+	h, _ := m.Called(attrs).Get(0).(slog.Handler)
+	return h
 }
 
 func (m *mockSlogHandler) WithGroup(name string) slog.Handler {
-	return m.Called(name).Get(0).(slog.Handler)
+	h, _ := m.Called(name).Get(0).(slog.Handler)
+	return h
 }
 
 func matchRecord(msg string, level slog.Level, attrs []slog.Attr) func(slog.Record) bool {
@@ -286,7 +288,7 @@ func Test_eventLoggerWithResponse_Wrap(t *testing.T) {
 				logger: slog.New(mHandler),
 				opts:   tt.options,
 			}
-			fn := sut.Wrap(func(ctx context.Context, event string) (any, error) {
+			fn := sut.Wrap(func(_ context.Context, event string) (any, error) {
 				assert.Equalf(t, tt.wantEvent, event, "Wrap(<func>)(%v, %v)", tt.args.ctx, tt.args.event)
 				return tt.handlerResp, tt.handlerErr
 			})
@@ -388,7 +390,7 @@ func Test_eventLoggerNoResponse_Wrap_customSanitizer(t *testing.T) {
 	))).Return(nil)
 
 	opts := defaultEventLoggerOptions
-	WithEventLoggerSanitizer(func(e events.APIGatewayProxyRequest) any {
+	WithEventLoggerSanitizer(func(_ events.APIGatewayProxyRequest) any {
 		return "sanitized"
 	})(&opts)
 

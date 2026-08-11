@@ -19,7 +19,7 @@ func NewContext[E any]() NoResponse[E] {
 	return &contextNoResponse[E]{}
 }
 
-func (c contextNoResponse[E]) Wrap(next func(context.Context, E) error) func(context.Context, E) error {
+func (contextNoResponse[E]) Wrap(next func(context.Context, E) error) func(context.Context, E) error {
 	return func(ctx context.Context, event E) error {
 		// Get context from event
 		_, ctx = contextFromEvent(ctx, event)
@@ -42,16 +42,16 @@ func NewContextWithResponse[E, R any]() WithResponse[E, R] {
 	return &contextWithResponse[E, R]{}
 }
 
-func (c contextWithResponse[E, R]) Wrap(next func(context.Context, E) (R, error)) func(context.Context, E) (R, error) {
+func (contextWithResponse[E, R]) Wrap(next func(context.Context, E) (R, error)) func(context.Context, E) (R, error) {
 	return func(ctx context.Context, event E) (R, error) {
 		// Get context from event
-		requestId, ctx := contextFromEvent(ctx, event)
+		requestID, ctx := contextFromEvent(ctx, event)
 
 		// Get response
 		response, err := next(ctx, event)
 
 		// Transform response
-		response = transformResponse(response, requestId)
+		response = transformResponse(response, requestID)
 
 		// Return response
 		return response, err
@@ -60,9 +60,9 @@ func (c contextWithResponse[E, R]) Wrap(next func(context.Context, E) (R, error)
 
 func contextFromEvent[E any](ctx context.Context, event E) (string, context.Context) {
 	// Extract request ids
-	requestId, lambdaRequestId := "", ""
+	requestID, lambdaRequestID := "", ""
 	if lambdaCtx, ok := lambdacontext.FromContext(ctx); ok {
-		requestId, lambdaRequestId = lambdaCtx.AwsRequestID, lambdaCtx.AwsRequestID
+		requestID, lambdaRequestID = lambdaCtx.AwsRequestID, lambdaCtx.AwsRequestID
 	}
 
 	// Event specific context
@@ -70,12 +70,12 @@ func contextFromEvent[E any](ctx context.Context, event E) (string, context.Cont
 
 	if apigwV1Event, ok := any(event).(events.APIGatewayProxyRequest); ok {
 		// APIGatewayProxyRequest (API Gateway V1)
-		amznRequestId := ""
+		amznRequestID := ""
 		if id := apigwV1Event.RequestContext.RequestID; id != "" {
-			requestId, amznRequestId = id, id
+			requestID, amznRequestID = id, id
 		}
 		additionalCtx = append(additionalCtx,
-			logctx.String("amzn_request_id", amznRequestId),
+			logctx.String("amzn_request_id", amznRequestID),
 			logctx.String("request_method", apigwV1Event.RequestContext.HTTPMethod),
 			logctx.String("request_domain", apigwV1Event.RequestContext.DomainName),
 			logctx.String("request_path", apigwV1Event.RequestContext.Path),
@@ -85,8 +85,8 @@ func contextFromEvent[E any](ctx context.Context, event E) (string, context.Cont
 	// Set context
 	ctx = logctx.Add(
 		ctx,
-		logctx.String("request_id", requestId),
-		logctx.String("lambda_request_id", lambdaRequestId),
+		logctx.String("request_id", requestID),
+		logctx.String("lambda_request_id", lambdaRequestID),
 	)
 	if len(additionalCtx) > 0 {
 		// Add additional ctx
@@ -96,17 +96,19 @@ func contextFromEvent[E any](ctx context.Context, event E) (string, context.Cont
 		)
 	}
 
-	return requestId, ctx
+	return requestID, ctx
 }
 
-func transformResponse[R any](response R, requestId string) R {
+func transformResponse[R any](response R, requestID string) R {
 	if apigwV1Response, ok := any(response).(events.APIGatewayProxyResponse); ok {
 		// APIGatewayProxyResponse (API Gateway V1)
 		if apigwV1Response.Headers != nil {
 			// Add request id to response headers
-			apigwV1Response.Headers["x-request-id"] = requestId
+			apigwV1Response.Headers["x-request-id"] = requestID
 		}
-		response = any(apigwV1Response).(R)
+		if transformed, ok := any(apigwV1Response).(R); ok {
+			response = transformed
+		}
 	}
 	return response
 }
