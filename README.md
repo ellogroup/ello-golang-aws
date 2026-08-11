@@ -90,10 +90,10 @@ logger := slog.Default()
 middleware.NewEventLogger[E](logger)
 
 middleware.NewEventLogger[E](logger,
-    middleware.WithEventLoggerEventStartedMsg[E]("Request started"),
-    middleware.WithEventLoggerEventCompletedMsg[E]("Request complete"),
-    middleware.WithEventLoggerEventStartedLevel[E](slog.LevelInfo),
-    middleware.WithEventLoggerEventCompletedLevel[E](slog.LevelInfo),
+    middleware.WithEventLoggerEventStartedMsg("Request started"),
+    middleware.WithEventLoggerEventCompletedMsg("Request complete"),
+    middleware.WithEventLoggerEventStartedLevel(slog.LevelInfo),
+    middleware.WithEventLoggerEventCompletedLevel(slog.LevelInfo),
 )
 
 // A route that is genuinely public and bodyless-safe to log in full can preserve the body:
