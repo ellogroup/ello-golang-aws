@@ -3,14 +3,16 @@ package middleware
 import (
 	"context"
 	"errors"
-	"github.com/aws/aws-lambda-go/events"
-	"github.com/ellogroup/ello-golang-clock/clock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"log/slog"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/ellogroup/ello-golang-clock/clock"
 )
 
 type mockSlogHandler struct {

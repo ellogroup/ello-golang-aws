@@ -1,9 +1,10 @@
 package middleware
 
 import (
+	"testing"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestRedactHTTPEvent(t *testing.T) {

@@ -2,9 +2,11 @@ package middleware
 
 import (
 	"context"
-	"github.com/aws/aws-lambda-go/events"
-	"github.com/ellogroup/ello-golang-clock/clock"
 	"log/slog"
+
+	"github.com/aws/aws-lambda-go/events"
+
+	"github.com/ellogroup/ello-golang-clock/clock"
 )
 
 const (

@@ -1,8 +1,9 @@
 package middleware
 
 import (
-	"github.com/aws/aws-lambda-go/events"
 	"strings"
+
+	"github.com/aws/aws-lambda-go/events"
 )
 
 const redactedValue = "[REDACTED]"
