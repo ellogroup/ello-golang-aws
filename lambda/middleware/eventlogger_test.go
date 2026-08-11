@@ -305,10 +305,12 @@ func Test_eventLoggerNoResponse_Wrap_redactsHTTPEventByDefault(t *testing.T) {
 	event := events.APIGatewayProxyRequest{
 		Path:    "/test",
 		Headers: map[string]string{"Authorization": "Bearer secret", "Content-Type": "application/json"},
+		Body:    `{"email":"jane@example.com"}`,
 	}
 	wantLogged := events.APIGatewayProxyRequest{
 		Path:    "/test",
 		Headers: map[string]string{"Authorization": redactedValue, "Content-Type": "application/json"},
+		Body:    redactedValue,
 	}
 
 	mHandler := new(mockSlogHandler)
@@ -330,6 +332,42 @@ func Test_eventLoggerNoResponse_Wrap_redactsHTTPEventByDefault(t *testing.T) {
 		return nil
 	})
 	_ = fn(context.Background(), event)
+
+	mHandler.AssertExpectations(t)
+}
+
+func Test_eventLoggerWithResponse_Wrap_redactsHTTPEventByDefault(t *testing.T) {
+	now := time.Date(2025, 1, 2, 3, 4, 5, 6, time.UTC)
+	event := events.APIGatewayProxyRequest{
+		Path:    "/test",
+		Headers: map[string]string{"Authorization": "Bearer secret", "Content-Type": "application/json"},
+		Body:    `{"email":"jane@example.com"}`,
+	}
+	wantLogged := events.APIGatewayProxyRequest{
+		Path:    "/test",
+		Headers: map[string]string{"Authorization": redactedValue, "Content-Type": "application/json"},
+		Body:    redactedValue,
+	}
+
+	mHandler := new(mockSlogHandler)
+	mHandler.On("Enabled", mock.Anything, mock.Anything).Return(true)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(matchRecord(
+		defaultEventStartedMsg, slog.LevelInfo, []slog.Attr{slog.Any("event", wantLogged)},
+	))).Return(nil)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(matchRecord(
+		defaultEventCompletedMsg, slog.LevelInfo, []slog.Attr{slog.Duration("duration", time.Duration(0))},
+	))).Return(nil)
+
+	sut := &eventLoggerWithResponse[events.APIGatewayProxyRequest, any]{
+		clock:  clock.NewFixed(now),
+		logger: slog.New(mHandler),
+		opts:   &defaultEventLoggerOptions,
+	}
+	fn := sut.Wrap(func(_ context.Context, e events.APIGatewayProxyRequest) (any, error) {
+		assert.Equal(t, event, e, "original event must not be modified")
+		return nil, nil
+	})
+	_, _ = fn(context.Background(), event)
 
 	mHandler.AssertExpectations(t)
 }

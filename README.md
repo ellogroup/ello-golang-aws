@@ -75,10 +75,12 @@ event and the end log record contains the duration of the request.
 
 For API Gateway v1 requests the end log record also contains the status code of the response.
 
-By default, sensitive HTTP headers (`Authorization`, `Cookie`, `X-Api-Key`) are automatically redacted in the event
-start log record for the following event types: `APIGatewayProxyRequest`, `APIGatewayV2HTTPRequest`,
-`ALBTargetGroupRequest`, `LambdaFunctionURLRequest`, and `APIGatewayWebsocketProxyRequest`. The `Cookies` field is also
-redacted for event types that carry it as a dedicated slice.
+By default, sensitive HTTP headers (`Authorization`, `Cookie`, `X-Api-Key`) and the request `Body` are automatically
+redacted in the event start log record for the following event types: `APIGatewayProxyRequest`,
+`APIGatewayV2HTTPRequest`, `ALBTargetGroupRequest`, `LambdaFunctionURLRequest`, and
+`APIGatewayWebsocketProxyRequest`. The `Cookies` field is also redacted for event types that carry it as a
+dedicated slice. Request/response bodies routinely carry customer PII, so redaction is on unless a route is known
+not to need it.
 
 The log messages, levels, and event sanitization can be customised using functional options:
 
@@ -94,7 +96,14 @@ middleware.NewEventLogger[E](logger,
     middleware.WithEventLoggerEventCompletedLevel[E](slog.LevelInfo),
 )
 
-// Custom sanitizer — replaces the default header redaction.
+// A route that is genuinely public and bodyless-safe to log in full can preserve the body:
+middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
+    middleware.WithEventLoggerSanitizer(func(e events.APIGatewayProxyRequest) any {
+        return middleware.RedactHTTPEvent(e, middleware.WithBodyIncluded())
+    }),
+)
+
+// Custom sanitizer — replaces the default header/body redaction entirely.
 // Call middleware.RedactHTTPEvent inside your sanitizer to apply built-in redaction as well.
 middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
     middleware.WithEventLoggerSanitizer(func(e events.APIGatewayProxyRequest) any {

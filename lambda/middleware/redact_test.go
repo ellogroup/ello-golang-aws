@@ -10,11 +10,12 @@ func TestRedactHTTPEvent(t *testing.T) {
 	type testCase struct {
 		name  string
 		event any
+		opts  []RedactOption
 		want  any
 	}
 	tests := []testCase{
 		{
-			name: "APIGatewayProxyRequest, sensitive headers redacted, non-sensitive preserved",
+			name: "APIGatewayProxyRequest, sensitive headers and body redacted, non-sensitive headers preserved",
 			event: events.APIGatewayProxyRequest{
 				Path: "/test",
 				Headers: map[string]string{
@@ -28,6 +29,7 @@ func TestRedactHTTPEvent(t *testing.T) {
 					"Cookie":        {"session=abc", "other=xyz"},
 					"Accept":        {"application/json"},
 				},
+				Body: `{"email":"jane@example.com"}`,
 			},
 			want: events.APIGatewayProxyRequest{
 				Path: "/test",
@@ -42,6 +44,24 @@ func TestRedactHTTPEvent(t *testing.T) {
 					"Cookie":        {redactedValue},
 					"Accept":        {"application/json"},
 				},
+				Body: redactedValue,
+			},
+		},
+		{
+			name:  "APIGatewayProxyRequest, empty body left empty",
+			event: events.APIGatewayProxyRequest{Path: "/test"},
+			want:  events.APIGatewayProxyRequest{Path: "/test"},
+		},
+		{
+			name: "APIGatewayProxyRequest, WithBodyIncluded preserves body",
+			event: events.APIGatewayProxyRequest{
+				Headers: map[string]string{"Authorization": "Bearer secret"},
+				Body:    `{"status":"ok"}`,
+			},
+			opts: []RedactOption{WithBodyIncluded()},
+			want: events.APIGatewayProxyRequest{
+				Headers: map[string]string{"Authorization": redactedValue},
+				Body:    `{"status":"ok"}`,
 			},
 		},
 		{
@@ -67,7 +87,7 @@ func TestRedactHTTPEvent(t *testing.T) {
 			want:  events.APIGatewayProxyRequest{Path: "/test"},
 		},
 		{
-			name: "APIGatewayV2HTTPRequest, sensitive headers and cookies redacted",
+			name: "APIGatewayV2HTTPRequest, sensitive headers, cookies, and body redacted",
 			event: events.APIGatewayV2HTTPRequest{
 				RawPath: "/test",
 				Headers: map[string]string{
@@ -75,6 +95,7 @@ func TestRedactHTTPEvent(t *testing.T) {
 					"Content-Type":  "application/json",
 				},
 				Cookies: []string{"session=abc", "other=xyz"},
+				Body:    `{"email":"jane@example.com"}`,
 			},
 			want: events.APIGatewayV2HTTPRequest{
 				RawPath: "/test",
@@ -83,6 +104,7 @@ func TestRedactHTTPEvent(t *testing.T) {
 					"Content-Type":  "application/json",
 				},
 				Cookies: []string{redactedValue},
+				Body:    redactedValue,
 			},
 		},
 		{
@@ -95,7 +117,7 @@ func TestRedactHTTPEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "ALBTargetGroupRequest, sensitive headers redacted",
+			name: "ALBTargetGroupRequest, sensitive headers and body redacted",
 			event: events.ALBTargetGroupRequest{
 				Path: "/test",
 				Headers: map[string]string{
@@ -106,6 +128,7 @@ func TestRedactHTTPEvent(t *testing.T) {
 					"Cookie": {"session=abc"},
 					"Accept": {"application/json"},
 				},
+				Body: `{"email":"jane@example.com"}`,
 			},
 			want: events.ALBTargetGroupRequest{
 				Path: "/test",
@@ -117,10 +140,11 @@ func TestRedactHTTPEvent(t *testing.T) {
 					"Cookie": {redactedValue},
 					"Accept": {"application/json"},
 				},
+				Body: redactedValue,
 			},
 		},
 		{
-			name: "LambdaFunctionURLRequest, sensitive headers and cookies redacted",
+			name: "LambdaFunctionURLRequest, sensitive headers, cookies, and body redacted",
 			event: events.LambdaFunctionURLRequest{
 				RawPath: "/test",
 				Headers: map[string]string{
@@ -128,6 +152,7 @@ func TestRedactHTTPEvent(t *testing.T) {
 					"Content-Type":  "application/json",
 				},
 				Cookies: []string{"session=abc"},
+				Body:    `{"email":"jane@example.com"}`,
 			},
 			want: events.LambdaFunctionURLRequest{
 				RawPath: "/test",
@@ -136,10 +161,11 @@ func TestRedactHTTPEvent(t *testing.T) {
 					"Content-Type":  "application/json",
 				},
 				Cookies: []string{redactedValue},
+				Body:    redactedValue,
 			},
 		},
 		{
-			name: "APIGatewayWebsocketProxyRequest, sensitive headers redacted",
+			name: "APIGatewayWebsocketProxyRequest, sensitive headers and body redacted",
 			event: events.APIGatewayWebsocketProxyRequest{
 				Headers: map[string]string{
 					"Authorization": "Bearer secret",
@@ -148,6 +174,7 @@ func TestRedactHTTPEvent(t *testing.T) {
 				MultiValueHeaders: map[string][]string{
 					"Cookie": {"session=abc"},
 				},
+				Body: `{"email":"jane@example.com"}`,
 			},
 			want: events.APIGatewayWebsocketProxyRequest{
 				Headers: map[string]string{
@@ -157,6 +184,7 @@ func TestRedactHTTPEvent(t *testing.T) {
 				MultiValueHeaders: map[string][]string{
 					"Cookie": {redactedValue},
 				},
+				Body: redactedValue,
 			},
 		},
 		{
@@ -167,7 +195,7 @@ func TestRedactHTTPEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, RedactHTTPEvent(tt.event), "RedactHTTPEvent(%v)", tt.event)
+			assert.Equalf(t, tt.want, RedactHTTPEvent(tt.event, tt.opts...), "RedactHTTPEvent(%v)", tt.event)
 		})
 	}
 }
