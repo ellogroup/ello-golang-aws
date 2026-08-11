@@ -99,7 +99,7 @@ middleware.NewEventLogger[E](logger,
 // A route that is genuinely public and bodyless-safe to log in full can preserve the body:
 middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
     middleware.WithEventLoggerSanitizer(func(e events.APIGatewayProxyRequest) any {
-        return middleware.RedactHTTPEvent(e, middleware.WithBodyIncluded())
+        return middleware.RedactHTTPEvent(e, middleware.WithBodyNotRedacted())
     }),
 )
 

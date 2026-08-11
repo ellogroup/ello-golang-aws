@@ -15,24 +15,24 @@ var sensitiveHeaders = map[string]struct{}{
 }
 
 type redactOptions struct {
-	includeBody bool
+	bodyNotRedacted bool
 }
 
 // RedactOption configures RedactHTTPEvent.
 type RedactOption func(*redactOptions)
 
-// WithBodyIncluded preserves the event's Body field instead of redacting it. Use this only for
-// routes that are genuinely public and bodyless-safe to log in full - request/response bodies
-// routinely carry customer PII, so the default is to redact them.
-func WithBodyIncluded() RedactOption {
+// WithBodyNotRedacted leaves the event's Body field untouched instead of redacting it. Use this
+// only for routes that are genuinely public and bodyless-safe to log in full - request/response
+// bodies routinely carry customer PII, so the default is to redact them.
+func WithBodyNotRedacted() RedactOption {
 	return func(o *redactOptions) {
-		o.includeBody = true
+		o.bodyNotRedacted = true
 	}
 }
 
 // RedactHTTPEvent returns a sanitized copy of known HTTP Lambda event types with sensitive headers
 // (Authorization, Cookie, X-Api-Key) and the request Body replaced with [REDACTED]. Non-HTTP event
-// types are returned unchanged. Pass WithBodyIncluded() to preserve the body for a route that is
+// types are returned unchanged. Pass WithBodyNotRedacted() to preserve the body for a route that is
 // known not to carry sensitive data.
 // It can be called inside a WithEventLoggerSanitizer function to compose built-in redaction with custom logic.
 func RedactHTTPEvent(event any, opts ...RedactOption) any {
@@ -75,7 +75,7 @@ func RedactHTTPEvent(event any, opts ...RedactOption) any {
 }
 
 func redactBody(body string, o redactOptions) string {
-	if body == "" || o.includeBody {
+	if body == "" || o.bodyNotRedacted {
 		return body
 	}
 	return redactedValue

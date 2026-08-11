@@ -54,12 +54,12 @@ func TestRedactHTTPEvent(t *testing.T) {
 			want:  events.APIGatewayProxyRequest{Path: "/test"},
 		},
 		{
-			name: "APIGatewayProxyRequest, WithBodyIncluded preserves body",
+			name: "APIGatewayProxyRequest, WithBodyNotRedacted preserves body",
 			event: events.APIGatewayProxyRequest{
 				Headers: map[string]string{"Authorization": "Bearer secret"},
 				Body:    `{"status":"ok"}`,
 			},
-			opts: []RedactOption{WithBodyIncluded()},
+			opts: []RedactOption{WithBodyNotRedacted()},
 			want: events.APIGatewayProxyRequest{
 				Headers: map[string]string{"Authorization": redactedValue},
 				Body:    `{"status":"ok"}`,
