@@ -60,7 +60,7 @@ direction is sufficient.]
 **Created:** 2026-08-11
 **Created by:** AI-assisted — reviewed by Symeon Manis
 **Owner:** Backend team
-**Linked ticket:** None
+**Linked ticket:** BE-676
 
 **What is the debt?**
 `revive`'s `var-naming` rule (enabled as part of this repo's first
