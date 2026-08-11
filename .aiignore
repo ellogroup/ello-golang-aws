@@ -1,0 +1,22 @@
+# Files AI agents must not read or modify.
+# Mirrors the deny rules in .claude/settings.json for agents that honour
+# the .aiignore convention (Cursor, Cline, and others).
+# See .ai-context/standards/security.md for the full rationale.
+
+# Secrets and credentials
+.env
+.env.*
+**/.env
+**/.env.*
+**/.aws/**
+**/secrets/**
+
+# Keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Terraform variables (may contain secrets)
+*.tfvars
+*.tfvars.json
