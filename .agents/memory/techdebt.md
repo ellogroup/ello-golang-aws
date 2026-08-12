@@ -54,10 +54,11 @@ direction is sufficient.]
 
 ### TD-001 — `apigw/response.NewJson` violates Go naming convention (should be `NewJSON`)
 
-**Status:** Accepted
+**Status:** Resolved (option b)
 **Severity:** Medium
 **Category:** Code Quality
 **Created:** 2026-08-11
+**Resolved:** 2026-08-12
 **Created by:** AI-assisted — reviewed by Symeon Manis
 **Owner:** Backend team
 **Linked ticket:** BE-676
@@ -82,15 +83,12 @@ None functionally — this is a naming-convention violation, not a bug.
 The only risk is the inconsistency reads oddly next to correctly-named
 exports elsewhere in the same package.
 
-**Proposed resolution:**
-Either (a) rename to `NewJSON` as a deliberate breaking change, bump
-this module's version accordingly, and update every consuming repo's
-import in the same coordinated effort, or (b) add `NewJSON` as a new
-function doing the same thing, mark `NewJson` deprecated via its GoDoc
-comment, and let consumers migrate at their own pace before removing
-`NewJson` in a future major version.
-
-**Effort estimate:** M — days (coordinated change across every consuming repo, not just this one)
-**Resolution target:** Backlog
+**Resolution taken:**
+Option (b) — added `NewJSON` as a new function with the real
+implementation; `NewJson` is now a thin deprecated wrapper delegating to
+it (`//nolint:revive` kept on the alias, `//nolint:staticcheck` on the
+one test exercising it intentionally). Existing consumers keep working
+unchanged and can migrate to `NewJSON` at their own pace; `NewJson` can
+be removed in a future major version once consumers have moved over.
 
 ---

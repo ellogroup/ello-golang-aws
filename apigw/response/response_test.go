@@ -35,7 +35,7 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func TestNewJson(t *testing.T) {
+func TestNewJSON(t *testing.T) {
 	type testBody struct {
 		Num int    `json:"num"`
 		Str string `json:"str"`
@@ -64,7 +64,11 @@ func TestNewJson(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, NewJson(tt.args.status, tt.args.body), "NewJson(%v, %v)", tt.args.status, tt.args.body)
+			assert.Equalf(t, tt.want, NewJSON(tt.args.status, tt.args.body), "NewJSON(%v, %v)", tt.args.status, tt.args.body)
 		})
 	}
+}
+
+func TestNewJson_delegatesToNewJSON(t *testing.T) {
+	assert.Equal(t, NewJSON(123, "test-789"), NewJson(123, "test-789")) //nolint:staticcheck // exercising deprecated alias intentionally
 }
