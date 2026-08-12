@@ -21,7 +21,7 @@ type eventLoggerOptions struct {
 	eventCompletedMsg   string
 	eventStartedLevel   slog.Level
 	eventCompletedLevel slog.Level
-	sanitizer           func(any) any
+	sanitizer           Sanitizer
 }
 
 var defaultEventLoggerOptions = eventLoggerOptions{
@@ -101,13 +101,13 @@ func TypedSanitizerFunc[E any](fn func(E) any) Sanitizer {
 // implementing Sanitizer for anything more involved.
 func WithEventLoggerSanitizer(s Sanitizer) EventLoggerOption {
 	return func(opts *eventLoggerOptions) {
-		opts.sanitizer = s.Sanitize
+		opts.sanitizer = s
 	}
 }
 
 func sanitizeEvent(opts *eventLoggerOptions, event any) any {
 	if opts.sanitizer != nil {
-		return opts.sanitizer(event)
+		return opts.sanitizer.Sanitize(event)
 	}
 	return RedactHTTPEvent(event)
 }
