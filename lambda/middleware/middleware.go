@@ -2,8 +2,9 @@ package middleware
 
 import (
 	"context"
-	"github.com/aws/aws-lambda-go/events"
 	"log/slog"
+
+	"github.com/aws/aws-lambda-go/events"
 )
 
 // NoResponse [E any] interface should be implemented for middleware of handlers of event type E that do not return a
@@ -46,6 +47,7 @@ func CommonWithResponse[E, R any](logger *slog.Logger) []WithResponse[E, R] {
 
 // Common middleware for common AWS Events
 
+// S3 is a slice of NoResponse middleware for handlers of events.S3Event.
 type S3 []NoResponse[events.S3Event]
 
 // CommonS3 returns a slice of common middleware for handlers of events.S3Event
@@ -53,6 +55,7 @@ func CommonS3(logger *slog.Logger) S3 {
 	return Common[events.S3Event](logger)
 }
 
+// SNS is a slice of NoResponse middleware for handlers of events.SNSEvent.
 type SNS []NoResponse[events.SNSEvent]
 
 // CommonSNS returns a slice of common middleware for handlers of events.SNSEvent
@@ -60,6 +63,7 @@ func CommonSNS(logger *slog.Logger) SNS {
 	return Common[events.SNSEvent](logger)
 }
 
+// SQS is a slice of NoResponse middleware for handlers of events.SQSEvent.
 type SQS []NoResponse[events.SQSEvent]
 
 // CommonSQS returns a slice of common middleware for handlers of events.SQSEvent
@@ -67,6 +71,8 @@ func CommonSQS(logger *slog.Logger) SQS {
 	return Common[events.SQSEvent](logger)
 }
 
+// APIGatewayV1 is a slice of WithResponse middleware for handlers of events.APIGatewayProxyRequest
+// that return events.APIGatewayProxyResponse.
 type APIGatewayV1 []WithResponse[events.APIGatewayProxyRequest, events.APIGatewayProxyResponse]
 
 // CommonAPIGatewayV1 returns a slice of common middleware for handlers of events.APIGatewayProxyRequest that return

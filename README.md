@@ -75,10 +75,12 @@ event and the end log record contains the duration of the request.
 
 For API Gateway v1 requests the end log record also contains the status code of the response.
 
-By default, sensitive HTTP headers (`Authorization`, `Cookie`, `X-Api-Key`) are automatically redacted in the event
-start log record for the following event types: `APIGatewayProxyRequest`, `APIGatewayV2HTTPRequest`,
-`ALBTargetGroupRequest`, `LambdaFunctionURLRequest`, and `APIGatewayWebsocketProxyRequest`. The `Cookies` field is also
-redacted for event types that carry it as a dedicated slice.
+By default, sensitive HTTP headers (`Authorization`, `Cookie`, `X-Api-Key`) and the request `Body` are automatically
+redacted in the event start log record for the following event types: `APIGatewayProxyRequest`,
+`APIGatewayV2HTTPRequest`, `ALBTargetGroupRequest`, `LambdaFunctionURLRequest`, and
+`APIGatewayWebsocketProxyRequest`. The `Cookies` field is also redacted for event types that carry it as a
+dedicated slice. Request/response bodies routinely carry customer PII, so redaction is on unless a route is known
+not to need it.
 
 The log messages, levels, and event sanitization can be customised using functional options:
 
@@ -88,20 +90,36 @@ logger := slog.Default()
 middleware.NewEventLogger[E](logger)
 
 middleware.NewEventLogger[E](logger,
-    middleware.WithEventLoggerEventStartedMsg[E]("Request started"),
-    middleware.WithEventLoggerEventCompletedMsg[E]("Request complete"),
-    middleware.WithEventLoggerEventStartedLevel[E](slog.LevelInfo),
-    middleware.WithEventLoggerEventCompletedLevel[E](slog.LevelInfo),
+    middleware.WithEventLoggerEventStartedMsg("Request started"),
+    middleware.WithEventLoggerEventCompletedMsg("Request complete"),
+    middleware.WithEventLoggerEventStartedLevel(slog.LevelInfo),
+    middleware.WithEventLoggerEventCompletedLevel(slog.LevelInfo),
 )
 
-// Custom sanitizer — replaces the default header redaction.
-// Call middleware.RedactHTTPEvent inside your sanitizer to apply built-in redaction as well.
+// WithEventLoggerSanitizer takes a Sanitizer - construct it once, outside the middleware
+// chain, so any options it holds are applied once rather than re-processed on every event.
+
+// A route that is genuinely public and bodyless-safe to log in full can preserve the body.
+// *Redactor implements Sanitizer, so it can be passed directly:
 middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
-    middleware.WithEventLoggerSanitizer(func(e events.APIGatewayProxyRequest) any {
+    middleware.WithEventLoggerSanitizer(middleware.NewRedactor(middleware.WithBodyNotRedacted())),
+)
+
+// A one-off closure over a known event type - TypedSanitizerFunc adapts it to Sanitizer:
+middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
+    middleware.WithEventLoggerSanitizer(middleware.TypedSanitizerFunc(func(e events.APIGatewayProxyRequest) any {
         redacted := middleware.RedactHTTPEvent(e)
         // additional custom logic...
         return redacted
-    }),
+    })),
+)
+
+// Anything more involved - implement Sanitizer yourself and pass it directly:
+type myCustomSanitizer struct{ /* ... */ }
+func (s *myCustomSanitizer) Sanitize(event any) any { /* ... */ return event }
+
+middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
+    middleware.WithEventLoggerSanitizer(&myCustomSanitizer{}),
 )
 ```
 
@@ -120,3 +138,20 @@ middleswares := middleware.CommonSQS(logger)
 
 middleswares := middleware.CommonAPIGatewayV1(logger)
 ```
+
+## Development
+
+```shell
+make build              # go build ./... — compiles the whole module
+make format             # gofmt + go fix + goimports -local + go mod tidy
+make static-tests       # golangci-lint + gosec + govulncheck
+make unit-tests         # go test -v -cover ./...
+make build-format-test  # all of the above
+```
+
+This repo includes the shared Ello AI-agent tooling (`AGENTS.md`, `CLAUDE.md`,
+`.ai-context/`). `.ai-context` is a git submodule, auto-initialised by
+`make build`/`make static-tests`/`make unit-tests` (skipped in CI). To pull the
+latest shared standards/conventions/skills, run `make sync-ai-context`. To
+seed `.agents/memory/` (progress, decisions, notes, tech debt) for a fresh
+session, run `make init-memory`.

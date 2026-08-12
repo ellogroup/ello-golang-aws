@@ -2,6 +2,7 @@ package response
 
 import (
 	"encoding/json"
+
 	"github.com/aws/aws-lambda-go/events"
 )
 
@@ -16,6 +17,11 @@ func New(status int, body string) events.APIGatewayProxyResponse {
 
 // NewJson creates a new JSON response for API Gateway. Body will be converted into JSON using json.Marshal(). If there
 // is an error marshalling the body, the response will be left blank.
+//
+// Should be NewJSON per naming convention, but every consumer repo already imports NewJson - renaming
+// is a breaking change tracked as tech debt (TD-001), not done as part of this retrofit.
+//
+//nolint:revive // see comment above
 func NewJson(status int, body any) events.APIGatewayProxyResponse {
 	res := events.APIGatewayProxyResponse{
 		StatusCode: status,

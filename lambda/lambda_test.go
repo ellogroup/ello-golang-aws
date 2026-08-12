@@ -3,10 +3,12 @@ package lambda
 import (
 	"context"
 	"errors"
-	"github.com/ellogroup/ello-golang-aws/lambda/middleware"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
+
+	"github.com/ellogroup/ello-golang-aws/lambda/middleware"
 )
 
 type mockHandler[E any] struct {
@@ -24,7 +26,8 @@ type mockHandlerWithResponse[E, R any] struct {
 
 func (m *mockHandlerWithResponse[E, R]) Handle(ctx context.Context, event E) (R, error) {
 	args := m.Called(ctx, event)
-	return args.Get(0).(R), args.Error(1)
+	r, _ := args.Get(0).(R)
+	return r, args.Error(1)
 }
 
 type idWrapperMiddleware[E []string] struct {

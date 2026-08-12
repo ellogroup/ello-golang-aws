@@ -3,14 +3,16 @@ package middleware
 import (
 	"context"
 	"errors"
-	"github.com/aws/aws-lambda-go/events"
-	"github.com/ellogroup/ello-golang-clock/clock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"log/slog"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/ellogroup/ello-golang-clock/clock"
 )
 
 type mockSlogHandler struct {
@@ -26,11 +28,13 @@ func (m *mockSlogHandler) Handle(ctx context.Context, r slog.Record) error {
 }
 
 func (m *mockSlogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return m.Called(attrs).Get(0).(slog.Handler)
+	h, _ := m.Called(attrs).Get(0).(slog.Handler)
+	return h
 }
 
 func (m *mockSlogHandler) WithGroup(name string) slog.Handler {
-	return m.Called(name).Get(0).(slog.Handler)
+	h, _ := m.Called(name).Get(0).(slog.Handler)
+	return h
 }
 
 func matchRecord(msg string, level slog.Level, attrs []slog.Attr) func(slog.Record) bool {
@@ -284,7 +288,7 @@ func Test_eventLoggerWithResponse_Wrap(t *testing.T) {
 				logger: slog.New(mHandler),
 				opts:   tt.options,
 			}
-			fn := sut.Wrap(func(ctx context.Context, event string) (any, error) {
+			fn := sut.Wrap(func(_ context.Context, event string) (any, error) {
 				assert.Equalf(t, tt.wantEvent, event, "Wrap(<func>)(%v, %v)", tt.args.ctx, tt.args.event)
 				return tt.handlerResp, tt.handlerErr
 			})
@@ -305,10 +309,12 @@ func Test_eventLoggerNoResponse_Wrap_redactsHTTPEventByDefault(t *testing.T) {
 	event := events.APIGatewayProxyRequest{
 		Path:    "/test",
 		Headers: map[string]string{"Authorization": "Bearer secret", "Content-Type": "application/json"},
+		Body:    `{"email":"jane@example.com"}`,
 	}
 	wantLogged := events.APIGatewayProxyRequest{
 		Path:    "/test",
 		Headers: map[string]string{"Authorization": redactedValue, "Content-Type": "application/json"},
+		Body:    redactedValue,
 	}
 
 	mHandler := new(mockSlogHandler)
@@ -334,6 +340,42 @@ func Test_eventLoggerNoResponse_Wrap_redactsHTTPEventByDefault(t *testing.T) {
 	mHandler.AssertExpectations(t)
 }
 
+func Test_eventLoggerWithResponse_Wrap_redactsHTTPEventByDefault(t *testing.T) {
+	now := time.Date(2025, 1, 2, 3, 4, 5, 6, time.UTC)
+	event := events.APIGatewayProxyRequest{
+		Path:    "/test",
+		Headers: map[string]string{"Authorization": "Bearer secret", "Content-Type": "application/json"},
+		Body:    `{"email":"jane@example.com"}`,
+	}
+	wantLogged := events.APIGatewayProxyRequest{
+		Path:    "/test",
+		Headers: map[string]string{"Authorization": redactedValue, "Content-Type": "application/json"},
+		Body:    redactedValue,
+	}
+
+	mHandler := new(mockSlogHandler)
+	mHandler.On("Enabled", mock.Anything, mock.Anything).Return(true)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(matchRecord(
+		defaultEventStartedMsg, slog.LevelInfo, []slog.Attr{slog.Any("event", wantLogged)},
+	))).Return(nil)
+	mHandler.On("Handle", mock.Anything, mock.MatchedBy(matchRecord(
+		defaultEventCompletedMsg, slog.LevelInfo, []slog.Attr{slog.Duration("duration", time.Duration(0))},
+	))).Return(nil)
+
+	sut := &eventLoggerWithResponse[events.APIGatewayProxyRequest, any]{
+		clock:  clock.NewFixed(now),
+		logger: slog.New(mHandler),
+		opts:   &defaultEventLoggerOptions,
+	}
+	fn := sut.Wrap(func(_ context.Context, e events.APIGatewayProxyRequest) (any, error) {
+		assert.Equal(t, event, e, "original event must not be modified")
+		return nil, nil
+	})
+	_, _ = fn(context.Background(), event)
+
+	mHandler.AssertExpectations(t)
+}
+
 func Test_eventLoggerNoResponse_Wrap_customSanitizer(t *testing.T) {
 	now := time.Date(2025, 1, 2, 3, 4, 5, 6, time.UTC)
 	event := events.APIGatewayProxyRequest{Path: "/test"}
@@ -348,9 +390,9 @@ func Test_eventLoggerNoResponse_Wrap_customSanitizer(t *testing.T) {
 	))).Return(nil)
 
 	opts := defaultEventLoggerOptions
-	WithEventLoggerSanitizer(func(e events.APIGatewayProxyRequest) any {
+	WithEventLoggerSanitizer(TypedSanitizerFunc(func(_ events.APIGatewayProxyRequest) any {
 		return "sanitized"
-	})(&opts)
+	}))(&opts)
 
 	sut := &eventLoggerNoResponse[events.APIGatewayProxyRequest]{
 		clock:  clock.NewFixed(now),
@@ -403,4 +445,39 @@ func TestNewEventLoggerWithResponse_defaultsNotMutatedByOptions(t *testing.T) {
 	_, _ = fn(context.Background(), "test")
 
 	mHandler.AssertExpectations(t)
+}
+
+func TestSanitizerFunc_Sanitize(t *testing.T) {
+	var called any
+	f := SanitizerFunc(func(event any) any {
+		called = event
+		return "sanitized"
+	})
+
+	got := f.Sanitize("original")
+
+	assert.Equal(t, "sanitized", got)
+	assert.Equal(t, "original", called)
+}
+
+func TestTypedSanitizerFunc(t *testing.T) {
+	t.Run("matching type is passed to fn", func(t *testing.T) {
+		s := TypedSanitizerFunc(func(e events.APIGatewayProxyRequest) any {
+			return e.Path
+		})
+
+		got := s.Sanitize(events.APIGatewayProxyRequest{Path: "/test"})
+
+		assert.Equal(t, "/test", got)
+	})
+
+	t.Run("mismatched type is returned unchanged", func(t *testing.T) {
+		s := TypedSanitizerFunc(func(_ events.APIGatewayProxyRequest) any {
+			return "should not be called"
+		})
+
+		got := s.Sanitize("not an APIGatewayProxyRequest")
+
+		assert.Equal(t, "not an APIGatewayProxyRequest", got)
+	})
 }
