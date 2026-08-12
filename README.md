@@ -18,7 +18,8 @@ return response.New(http.StatusOK, "plain text")
 type respBody struct {
     Message string `json:"message"`
 }
-return response.NewJson(http.StatusOK, respBody{Message: "json response"})
+return response.NewJSON(http.StatusOK, respBody{Message: "json response"})
+// NewJson is a deprecated alias kept for existing consumers - use NewJSON in new code.
 
 // Return an error response
 return response.NewError(http.StatusBadRequest, "error message")
