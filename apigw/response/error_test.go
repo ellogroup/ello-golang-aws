@@ -140,7 +140,18 @@ func TestNewErrorCode(t *testing.T) {
 
 	t.Run("unregistered ErrorCode panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewErrorCode(ErrorCode(999))
+			NewErrorCode(errorCodeCount)
 		})
 	})
+}
+
+// TestErrorCodeDefinitions_registerEveryErrorCode guards against a new ErrorCode constant being
+// added without a corresponding errorCodeDefinitions entry, which NewErrorCode would only catch
+// at call time via its panic.
+func TestErrorCodeDefinitions_registerEveryErrorCode(t *testing.T) {
+	for code := ErrorCode(0); code < errorCodeCount; code++ {
+		_, ok := errorCodeDefinitions[code]
+		assert.True(t, ok, "ErrorCode(%d) has no registered definition", code)
+	}
+	assert.Len(t, errorCodeDefinitions, int(errorCodeCount), "errorCodeDefinitions has an entry not backed by an ErrorCode constant")
 }

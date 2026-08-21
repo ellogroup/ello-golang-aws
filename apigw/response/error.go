@@ -22,6 +22,10 @@ const (
 	ErrorCodeUnauthorized
 	ErrorCodeRateLimited
 	ErrorCodeInternalError
+
+	// errorCodeCount is one past the last ErrorCode constant - used to check every constant above
+	// has a registered definition (see error_test.go) and as a guaranteed-unregistered value.
+	errorCodeCount
 )
 
 type errorCodeDefinition struct {
