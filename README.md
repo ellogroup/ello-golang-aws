@@ -68,6 +68,14 @@ func init() {
 return response.NewErrorCode(ErrorCodeWidgetJammed)
 ```
 
+**Recommended pattern:** keep an application's `ErrorCode` constants and their `RegisterErrorCode`/
+`MustRegisterErrorCode` calls together in one file (e.g. `internal/errors/codes.go`), registered from
+that file's own `init()`, rather than spreading declarations across handlers - it's the one place to
+look to see every error the application can return. The registry has no way to detect two *different*
+concepts that happen to share a code string (only genuine redefinitions of the *same* code are
+caught), so give custom codes distinctive, domain-specific names (`widget_jammed`, not `not_found`)
+to keep them from colliding with another package's codes in the same binary.
+
 ## Lambda
 
 Helpers to start a Lambda container with middleware. The middleware will be applied in the order they are found within 
