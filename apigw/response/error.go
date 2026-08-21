@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/aws/aws-lambda-go/events"
-	"golang.org/x/exp/constraints"
 )
 
 // ErrorCode identifies an error returned by an API - either one of ours (see the ErrorCode*
@@ -154,7 +153,7 @@ const (
 // errorCodeConstraint is satisfied by any string or integer type, named or not, so a caller can
 // pass an ErrorCode - or a plain string/int - directly as an Error's code.
 type errorCodeConstraint interface {
-	~string | constraints.Integer
+	~string | ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
 }
 
 type Error[T errorCodeConstraint] struct {
