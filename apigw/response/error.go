@@ -14,31 +14,14 @@ import (
 // The empty ErrorCode is reserved as "unset" and is never a valid registered code.
 type ErrorCode string
 
+// Generic error codes built into this package - see NewErrorCode. Applications can register their
+// own additional codes with RegisterErrorCode/MustRegisterErrorCode.
 const (
 	ErrorCodeValidationFailed ErrorCode = "validation_failed"
 	ErrorCodeUnauthorized     ErrorCode = "unauthorized"
 	ErrorCodeRateLimited      ErrorCode = "rate_limited"
 	ErrorCodeInternalError    ErrorCode = "internal_error"
 )
-
-func init() {
-	MustRegisterErrorCode(ErrorCodeValidationFailed, ErrorCodeDefinition{
-		Status:  http.StatusBadRequest,
-		Message: "One or more fields in the request body were invalid.",
-	})
-	MustRegisterErrorCode(ErrorCodeUnauthorized, ErrorCodeDefinition{
-		Status:  http.StatusUnauthorized,
-		Message: "Missing or invalid bearer token.",
-	})
-	MustRegisterErrorCode(ErrorCodeRateLimited, ErrorCodeDefinition{
-		Status:  http.StatusTooManyRequests,
-		Message: "Too many requests. Retry after the period in the Retry-After header.",
-	})
-	MustRegisterErrorCode(ErrorCodeInternalError, ErrorCodeDefinition{
-		Status:  http.StatusInternalServerError,
-		Message: "An unexpected error occurred. Please retry.",
-	})
-}
 
 // ErrorCodeDefinition bundles the HTTP status, message, and default field-level details NewErrorCode
 // uses to build a response for a given ErrorCode - see RegisterErrorCode.
@@ -50,7 +33,24 @@ type ErrorCodeDefinition struct {
 
 var (
 	errorCodeRegistryMu sync.RWMutex
-	errorCodeRegistry   = map[ErrorCode]ErrorCodeDefinition{}
+	errorCodeRegistry   = map[ErrorCode]ErrorCodeDefinition{
+		ErrorCodeValidationFailed: {
+			Status:  http.StatusBadRequest,
+			Message: "One or more fields in the request body were invalid.",
+		},
+		ErrorCodeUnauthorized: {
+			Status:  http.StatusUnauthorized,
+			Message: "Missing or invalid bearer token.",
+		},
+		ErrorCodeRateLimited: {
+			Status:  http.StatusTooManyRequests,
+			Message: "Too many requests. Retry after the period in the Retry-After header.",
+		},
+		ErrorCodeInternalError: {
+			Status:  http.StatusInternalServerError,
+			Message: "An unexpected error occurred. Please retry.",
+		},
+	}
 )
 
 // RegisterErrorCode registers def as the definition NewErrorCode uses for code. Call it once at
@@ -155,6 +155,8 @@ type errorCodeConstraint interface {
 	~string | ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
 }
 
+// Error is the JSON body NewError/NewErrorCode return - a code, a message, and optional field-level
+// validation details.
 type Error[T errorCodeConstraint] struct {
 	Code    T            `json:"code"`
 	Message string       `json:"message"`
@@ -172,12 +174,14 @@ func NewError[T errorCodeConstraint](status int, code T, msg string, fields ...E
 	})
 }
 
+// ErrorField is one field-level validation detail within an Error's Fields.
 type ErrorField struct {
 	Code    string `json:"code"`
 	Field   string `json:"field"`
 	Message string `json:"message"`
 }
 
+// NewErrorField creates a new ErrorField for the named field.
 func NewErrorField(field, code, message string) ErrorField {
 	return ErrorField{
 		Code:    code,

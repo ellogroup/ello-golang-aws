@@ -223,17 +223,15 @@ func TestErrorCodeRegistry_concurrentAccess(t *testing.T) {
 	const goroutines = 50
 
 	var wg sync.WaitGroup
-	for i := 0; i < goroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for i := range goroutines {
+		wg.Go(func() {
 			code := ErrorCode(fmt.Sprintf("test_concurrent_code_%d", i))
 			def := ErrorCodeDefinition{Status: 400, Message: "concurrent"}
 			assert.NoError(t, RegisterErrorCode(code, def))
 			assert.NoError(t, RegisterErrorCode(code, def)) // idempotent re-registration, racing lookups below
 			_ = NewErrorCode(code)
 			_ = NewErrorCode(ErrorCodeUnauthorized) // concurrent reads of a shared, already-registered code
-		}()
+		})
 	}
 	wg.Wait()
 }
