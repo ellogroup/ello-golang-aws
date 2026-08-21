@@ -5,7 +5,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/lambda"
 
-	"github.com/ellogroup/ello-golang-aws/lambda/middleware"
+	"github.com/ellogroup/ello-golang-aws/v2/lambda/middleware"
 )
 
 // Handler [E any] interface should be implemented for handlers of event type E that do not return a response.

@@ -30,7 +30,7 @@ API of its own and no Terraform-managed CI/CD pipeline (see below).
 This repository is **`ello-golang-aws`**, a shared Go library — not a
 deployable service. It provides AWS Lambda / API Gateway middleware and
 response helpers that other Ello backend repos import as a Go module
-dependency (`github.com/ellogroup/ello-golang-aws`), versioned via git tags.
+dependency (`github.com/ellogroup/ello-golang-aws/v2`), versioned via git tags.
 
 There is no `app/` module root, no `infrastructure/` (this repo owns no cloud
 resources of its own), and no `test/` integration-test module — the Go module

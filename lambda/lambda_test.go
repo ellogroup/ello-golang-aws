@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/ellogroup/ello-golang-aws/lambda/middleware"
+	"github.com/ellogroup/ello-golang-aws/v2/lambda/middleware"
 )
 
 type mockHandler[E any] struct {

@@ -1,4 +1,4 @@
-module github.com/ellogroup/ello-golang-aws
+module github.com/ellogroup/ello-golang-aws/v2
 
 go 1.26.5
 
