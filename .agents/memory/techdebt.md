@@ -14,7 +14,7 @@ exists is as important as the debt itself.
 |---|---|---|---|---|
 | Critical | 0 | 0 | 0 | 0 |
 | High | 0 | 0 | 0 | 0 |
-| Medium | 0 | 0 | 0 | 1 |
+| Medium | 1 | 0 | 0 | 1 |
 | Low | 0 | 0 | 0 | 0 |
 
 ---
@@ -90,5 +90,67 @@ it (`//nolint:revive` kept on the alias, `//nolint:staticcheck` on the
 one test exercising it intentionally). Existing consumers keep working
 unchanged and can migrate to `NewJSON` at their own pace; `NewJson` can
 be removed in a future major version once consumers have moved over.
+
+---
+
+### TD-002 — `apigw/response.ErrorCode` set is domain-specific, not generic
+
+**Status:** Open
+**Severity:** Medium
+**Category:** Architecture
+**Created:** 2026-08-21
+**Created by:** AI-assisted — reviewed by Dave Richards
+**Owner:** Backend team
+**Linked ticket:** None
+
+**What is the debt?**
+`apigw/response.ErrorCode` and its registered definitions
+(`ErrorCodeCustomerNotFound`, `ErrorCodeOfferNotFound`,
+`ErrorCodeRedemptionNotFound`, `ErrorCodeCustomerAlreadyExists`,
+`ErrorCodeOfferNotRedeemable`) are named after entities specific to the
+Ello B2B API (customers, offers, redemptions) — copied literally from
+that API's OpenAPI spec (Confluence: "OpenAPI Specification", space EP,
+page 1223098369). `ello-golang-aws` is a shared, generic library
+imported by multiple backend repos, so baking one API's entity-specific
+codes into it doesn't generalise: any other consuming service with
+different domain entities either can't use `NewErrorCode` for its own
+"not found" / "already exists" cases, or this library has to keep
+growing a new `ErrorCode` constant + definition per entity per
+consumer, which is the wrong place for that coupling.
+
+**Why does it exist?**
+Added while implementing `NewError`/`NewErrorCode` to match the Ello
+B2B API's documented error shape exactly, so callers reporting the same
+error produce the same status/code/message. The BA was on annual leave
+at the time, so we couldn't confirm whether the OpenAPI spec's
+per-entity codes (`customer_not_found`, `offer_not_found`, ...) are a
+fixed external contract we must mirror exactly, or whether a more
+generic scheme (e.g. `not_found` / `already_exists` parameterised by
+entity) would be acceptable there too. We went with the literal,
+spec-matching set as the safe default in the meantime.
+
+**What is the risk if unaddressed?**
+Every new "not found" / "already exists" case, in this API or a
+different consuming service, needs a new `ErrorCode` constant and
+`errorCodeDefinitions` entry added to this shared library — coupling a
+generic package to specific business domains it shouldn't need to know
+about, and this set will not transfer as-is to a service with different
+entities.
+
+**Proposed resolution:**
+Revisit once the BA is back to confirm whether the OpenAPI spec's
+per-entity codes are a hard external contract. Then either:
+  (a) move to a more generic code set (`not_found`, `already_exists`,
+      etc.) with the entity/detail passed as a parameter (e.g. via
+      `WithErrorMessage`/a new `WithErrorEntity`-style option) used to
+      construct the wire code and/or message, or
+  (b) keep per-entity codes but move the Ello-B2B-specific ones out of
+      this shared library (e.g. into a small package owned by that
+      service) and keep only truly generic codes
+      (`ErrorCodeUnauthorized`, `ErrorCodeRateLimited`,
+      `ErrorCodeInternalError`, `ErrorCodeValidationFailed`) here.
+
+**Effort estimate:** M — days
+**Resolution target:** Backlog (blocked on BA availability)
 
 ---
