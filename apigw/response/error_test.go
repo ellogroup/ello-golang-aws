@@ -1,6 +1,8 @@
 package response
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -170,6 +172,71 @@ func TestBuiltinErrorCodeDefinitions_registerEveryErrorCode(t *testing.T) {
 		_, ok := errorCodeRegistry[code]
 		assert.True(t, ok, "%s has no registered definition", code)
 	}
+}
+
+func TestNewErrorCode_builtins(t *testing.T) {
+	tests := []struct {
+		code ErrorCode
+		want events.APIGatewayProxyResponse
+	}{
+		{
+			code: ErrorCodeValidationFailed,
+			want: events.APIGatewayProxyResponse{
+				StatusCode: 400,
+				Body:       `{"code":"validation_failed","message":"One or more fields in the request body were invalid."}`,
+				Headers:    map[string]string{"Content-Type": "application/json"},
+			},
+		},
+		{
+			code: ErrorCodeUnauthorized,
+			want: events.APIGatewayProxyResponse{
+				StatusCode: 401,
+				Body:       `{"code":"unauthorized","message":"Missing or invalid bearer token."}`,
+				Headers:    map[string]string{"Content-Type": "application/json"},
+			},
+		},
+		{
+			code: ErrorCodeRateLimited,
+			want: events.APIGatewayProxyResponse{
+				StatusCode: 429,
+				Body:       `{"code":"rate_limited","message":"Too many requests. Retry after the period in the Retry-After header."}`,
+				Headers:    map[string]string{"Content-Type": "application/json"},
+			},
+		},
+		{
+			code: ErrorCodeInternalError,
+			want: events.APIGatewayProxyResponse{
+				StatusCode: 500,
+				Body:       `{"code":"internal_error","message":"An unexpected error occurred. Please retry."}`,
+				Headers:    map[string]string{"Content-Type": "application/json"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.code), func(t *testing.T) {
+			assert.Equal(t, tt.want, NewErrorCode(tt.code))
+		})
+	}
+}
+
+func TestErrorCodeRegistry_concurrentAccess(t *testing.T) {
+	const goroutines = 50
+
+	var wg sync.WaitGroup
+	for i := 0; i < goroutines; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			code := ErrorCode(fmt.Sprintf("test_concurrent_code_%d", i))
+			def := ErrorCodeDefinition{Status: 400, Message: "concurrent"}
+			assert.NoError(t, RegisterErrorCode(code, def))
+			assert.NoError(t, RegisterErrorCode(code, def)) // idempotent re-registration, racing lookups below
+			_ = NewErrorCode(code)
+			_ = NewErrorCode(ErrorCodeUnauthorized) // concurrent reads of a shared, already-registered code
+		}()
+	}
+	wg.Wait()
 }
 
 func TestRegisterErrorCode(t *testing.T) {

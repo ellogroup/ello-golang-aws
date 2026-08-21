@@ -112,8 +112,7 @@ func WithErrorStatus(status int) ErrorCodeOption {
 
 // WithErrorMessage overrides the message NewErrorCode would otherwise use for code. Needed
 // whenever the default message can't carry details only the caller has, such as an id or field
-// name (e.g. customer_not_found's default is generic; a handler that knows the id should override
-// it with the specific message).
+// name a custom, application-registered ErrorCode's default message is necessarily generic about.
 func WithErrorMessage(message string) ErrorCodeOption {
 	return func(d *ErrorCodeDefinition) { d.Message = message }
 }
