@@ -21,9 +21,60 @@ type respBody struct {
 return response.NewJSON(http.StatusOK, respBody{Message: "json response"})
 // NewJson is a deprecated alias kept for existing consumers - use NewJSON in new code.
 
-// Return an error response
-return response.NewError(http.StatusBadRequest, "error message")
+// Return one of our known errors. NewErrorCode looks up code's predefined HTTP status, wire code,
+// and message, so every caller reporting the same error produces the same response.
+// Response body: {"code":"unauthorized","message":"Missing or invalid bearer token."}
+return response.NewErrorCode(response.ErrorCodeUnauthorized)
+
+// Override the default message when it can't carry details only the caller has (an id, a field
+// name), or the status/fields, with the With* options.
+// Response body: {"code":"validation_failed","message":"One or more query parameters were invalid."}
+return response.NewErrorCode(response.ErrorCodeValidationFailed,
+    response.WithErrorMessage("One or more query parameters were invalid."),
+)
+
+// Add field-level validation details with WithErrorFields. FieldErrorCode* constants are the
+// predefined field-level codes for our APIs.
+// Response body:
+// {"code":"validation_failed","message":"One or more fields in the request body were invalid.","fields":[
+//   {"code":"invalid_format","field":"email","message":"must be a valid email"}
+// ]}
+return response.NewErrorCode(response.ErrorCodeValidationFailed,
+    response.WithErrorFields(response.NewErrorField("email", response.FieldErrorCodeInvalidFormat, "must be a valid email")),
+)
+
+// Return an error response outside any registered ErrorCode. code is distinct from the HTTP status
+// and may be a string or any integer type.
+// Response body: {"code":"invalid_brand","message":"unknown brand"}
+return response.NewError(http.StatusBadRequest, "invalid_brand", "unknown brand")
 ```
+
+Applications can register their own ErrorCodes so their own errors get the same one-call,
+drift-free NewErrorCode ergonomics as the built-in ones - register once at startup (e.g. from an
+init function), not per request:
+
+```go
+const ErrorCodeWidgetJammed response.ErrorCode = "widget_jammed"
+
+func init() {
+    response.MustRegisterErrorCode(ErrorCodeWidgetJammed, response.ErrorCodeDefinition{
+        Status:  http.StatusConflict,
+        Message: "The widget is jammed and cannot be processed.",
+    })
+}
+
+// Anywhere in the application:
+// Response body: {"code":"widget_jammed","message":"The widget is jammed and cannot be processed."}
+return response.NewErrorCode(ErrorCodeWidgetJammed)
+```
+
+**Recommended pattern:** keep an application's `ErrorCode` constants and their `RegisterErrorCode`/
+`MustRegisterErrorCode` calls together in one file (e.g. `internal/errors/codes.go`), registered from
+that file's own `init()`, rather than spreading declarations across handlers - it's the one place to
+look to see every error the application can return. The registry has no way to detect two *different*
+concepts that happen to share a code string (only genuine redefinitions of the *same* code are
+caught), so give custom codes distinctive, domain-specific names (`widget_jammed`, not `not_found`)
+to keep them from colliding with another package's codes in the same binary.
 
 ## Lambda
 
