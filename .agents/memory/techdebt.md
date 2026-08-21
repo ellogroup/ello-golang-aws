@@ -14,7 +14,7 @@ exists is as important as the debt itself.
 |---|---|---|---|---|
 | Critical | 0 | 0 | 0 | 0 |
 | High | 0 | 0 | 0 | 0 |
-| Medium | 1 | 0 | 0 | 1 |
+| Medium | 0 | 0 | 1 | 1 |
 | Low | 0 | 0 | 0 | 0 |
 
 ---
@@ -95,10 +95,11 @@ be removed in a future major version once consumers have moved over.
 
 ### TD-002 — `apigw/response.ErrorCode` set is domain-specific, not generic
 
-**Status:** Open
+**Status:** Resolved (option b, extended)
 **Severity:** Medium
 **Category:** Architecture
 **Created:** 2026-08-21
+**Resolved:** 2026-08-21
 **Created by:** AI-assisted — reviewed by Dave Richards
 **Owner:** Backend team
 **Linked ticket:** None
@@ -137,20 +138,31 @@ generic package to specific business domains it shouldn't need to know
 about, and this set will not transfer as-is to a service with different
 entities.
 
-**Proposed resolution:**
-Revisit once the BA is back to confirm whether the OpenAPI spec's
-per-entity codes are a hard external contract. Then either:
-  (a) move to a more generic code set (`not_found`, `already_exists`,
-      etc.) with the entity/detail passed as a parameter (e.g. via
-      `WithErrorMessage`/a new `WithErrorEntity`-style option) used to
-      construct the wire code and/or message, or
-  (b) keep per-entity codes but move the Ello-B2B-specific ones out of
-      this shared library (e.g. into a small package owned by that
-      service) and keep only truly generic codes
-      (`ErrorCodeUnauthorized`, `ErrorCodeRateLimited`,
-      `ErrorCodeInternalError`, `ErrorCodeValidationFailed`) here.
+**Resolution taken:**
+Option (b), extended into a general mechanism rather than a one-off move.
+`ErrorCode` changed from an `iota`-based `int` (closed, compile-time-only
+set) to `string` (the wire code is now the identity itself), backed by an
+open, `sync.RWMutex`-guarded registry. `RegisterErrorCode`/
+`MustRegisterErrorCode` let any consuming application register its own
+`ErrorCode` definitions once at startup (e.g. from an `init` function),
+with `NewErrorCode` working identically for built-in and app-registered
+codes — no separate "generator" struct to construct and thread through
+handlers; this package's own built-ins register themselves through the
+same public function. The 5 Ello-B2B-specific codes
+(`ErrorCodeCustomerAlreadyExists`, `ErrorCodeCustomerNotFound`,
+`ErrorCodeOfferNotFound`, `ErrorCodeOfferNotRedeemable`,
+`ErrorCodeRedemptionNotFound`) and `FieldErrorCodeOfferWithdrawn` were
+removed from this library entirely; only the truly generic codes remain
+(`ErrorCodeValidationFailed`, `ErrorCodeUnauthorized`,
+`ErrorCodeRateLimited`, `ErrorCodeInternalError`).
 
-**Effort estimate:** M — days
-**Resolution target:** Backlog (blocked on BA availability)
+**Follow-up required in the consuming Ello B2B API repo:** it must define
+and register its own `ErrorCode` constants (mirroring the 5 removed ones)
+via `response.RegisterErrorCode`/`MustRegisterErrorCode` in its own
+startup code, and update its handlers from `response.ErrorCodeCustomerNotFound`
+(etc.) to its own package's equivalent, before it can upgrade to this
+version of `ello-golang-aws`. Nothing has been tagged/released yet, so no
+consumer is broken by this today, but this is a breaking change for
+whenever that repo does upgrade.
 
 ---

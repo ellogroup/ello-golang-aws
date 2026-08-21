@@ -28,9 +28,9 @@ return response.NewErrorCode(response.ErrorCodeUnauthorized)
 
 // Override the default message when it can't carry details only the caller has (an id, a field
 // name), or the status/fields, with the With* options.
-// Response body: {"code":"customer_not_found","message":"No customer with id `abc123` was found."}
-return response.NewErrorCode(response.ErrorCodeCustomerNotFound,
-    response.WithErrorMessage("No customer with id `abc123` was found."),
+// Response body: {"code":"validation_failed","message":"One or more query parameters were invalid."}
+return response.NewErrorCode(response.ErrorCodeValidationFailed,
+    response.WithErrorMessage("One or more query parameters were invalid."),
 )
 
 // Add field-level validation details with WithErrorFields. FieldErrorCode* constants are the
@@ -43,10 +43,29 @@ return response.NewErrorCode(response.ErrorCodeValidationFailed,
     response.WithErrorFields(response.NewErrorField("email", response.FieldErrorCodeInvalidFormat, "must be a valid email")),
 )
 
-// Return an error response outside our known ErrorCode set. code is distinct from the HTTP status
+// Return an error response outside any registered ErrorCode. code is distinct from the HTTP status
 // and may be a string or any integer type.
 // Response body: {"code":"invalid_brand","message":"unknown brand"}
 return response.NewError(http.StatusBadRequest, "invalid_brand", "unknown brand")
+```
+
+Applications can register their own ErrorCodes so their own errors get the same one-call,
+drift-free NewErrorCode ergonomics as the built-in ones - register once at startup (e.g. from an
+init function), not per request:
+
+```go
+const ErrorCodeWidgetJammed response.ErrorCode = "widget_jammed"
+
+func init() {
+    response.MustRegisterErrorCode(ErrorCodeWidgetJammed, response.ErrorCodeDefinition{
+        Status:  http.StatusConflict,
+        Message: "The widget is jammed and cannot be processed.",
+    })
+}
+
+// Anywhere in the application:
+// Response body: {"code":"widget_jammed","message":"The widget is jammed and cannot be processed."}
+return response.NewErrorCode(ErrorCodeWidgetJammed)
 ```
 
 ## Lambda

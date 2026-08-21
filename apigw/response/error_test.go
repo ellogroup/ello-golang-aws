@@ -74,6 +74,18 @@ func TestNewError_IntCode(t *testing.T) {
 	})
 }
 
+func TestNewError_ErrorCodeArgument(t *testing.T) {
+	t.Run("an ErrorCode value can be passed directly, without converting to string", func(t *testing.T) {
+		got := NewError(401, ErrorCodeUnauthorized, "bad request")
+		want := events.APIGatewayProxyResponse{
+			StatusCode: 401,
+			Body:       `{"code":"unauthorized","message":"bad request"}`,
+			Headers:    map[string]string{"Content-Type": "application/json"},
+		}
+		assert.Equal(t, want, got)
+	})
+}
+
 func TestNewErrorField(t *testing.T) {
 	got := NewErrorField("email", FieldErrorCodeInvalidFormat, "must be a valid email")
 	assert.Equal(t, ErrorField{
@@ -89,7 +101,7 @@ func TestErrorCode_String(t *testing.T) {
 }
 
 func TestNewErrorCode(t *testing.T) {
-	t.Run("uses the registered status, code and message", func(t *testing.T) {
+	t.Run("uses the registered status and message", func(t *testing.T) {
 		got := NewErrorCode(ErrorCodeUnauthorized)
 		want := events.APIGatewayProxyResponse{
 			StatusCode: 401,
@@ -100,10 +112,10 @@ func TestNewErrorCode(t *testing.T) {
 	})
 
 	t.Run("WithErrorMessage overrides the default message", func(t *testing.T) {
-		got := NewErrorCode(ErrorCodeCustomerNotFound, WithErrorMessage("No customer with id `abc123` was found."))
+		got := NewErrorCode(ErrorCodeValidationFailed, WithErrorMessage("One or more query parameters were invalid."))
 		want := events.APIGatewayProxyResponse{
-			StatusCode: 404,
-			Body:       `{"code":"customer_not_found","message":"No customer with id ` + "`abc123`" + ` was found."}`,
+			StatusCode: 400,
+			Body:       `{"code":"validation_failed","message":"One or more query parameters were invalid."}`,
 			Headers:    map[string]string{"Content-Type": "application/json"},
 		}
 		assert.Equal(t, want, got)
@@ -121,37 +133,128 @@ func TestNewErrorCode(t *testing.T) {
 
 	t.Run("WithErrorFields attaches field-level validation details", func(t *testing.T) {
 		got := NewErrorCode(ErrorCodeValidationFailed,
-			WithErrorMessage("One or more query parameters were invalid."),
-			WithErrorFields(NewErrorField("nearLocation", FieldErrorCodeInvalidFormat, "Must be either a place name or a `lat,lng` coordinate pair.")),
+			WithErrorFields(NewErrorField("email", FieldErrorCodeInvalidFormat, "must be a valid email")),
 		)
 		want := events.APIGatewayProxyResponse{
 			StatusCode: 400,
-			Body:       `{"code":"validation_failed","message":"One or more query parameters were invalid.","fields":[{"code":"invalid_format","field":"nearLocation","message":"Must be either a place name or a ` + "`lat,lng`" + ` coordinate pair."}]}`,
+			Body:       `{"code":"validation_failed","message":"One or more fields in the request body were invalid.","fields":[{"code":"invalid_format","field":"email","message":"must be a valid email"}]}`,
 			Headers:    map[string]string{"Content-Type": "application/json"},
 		}
 		assert.Equal(t, want, got)
 	})
 
 	t.Run("options apply independently of each other", func(t *testing.T) {
-		got1 := NewErrorCode(ErrorCodeOfferNotFound)
-		got2 := NewErrorCode(ErrorCodeOfferNotFound, WithErrorMessage("custom message"))
+		got1 := NewErrorCode(ErrorCodeValidationFailed)
+		got2 := NewErrorCode(ErrorCodeValidationFailed, WithErrorMessage("custom message"))
 		assert.NotEqual(t, got1.Body, got2.Body, "the first call's definition must not be mutated by the second call's options")
 	})
 
 	t.Run("unregistered ErrorCode panics", func(t *testing.T) {
 		assert.Panics(t, func() {
-			NewErrorCode(errorCodeCount)
+			NewErrorCode(ErrorCode("definitely_not_registered"))
 		})
 	})
 }
 
-// TestErrorCodeDefinitions_registerEveryErrorCode guards against a new ErrorCode constant being
-// added without a corresponding errorCodeDefinitions entry, which NewErrorCode would only catch
-// at call time via its panic.
-func TestErrorCodeDefinitions_registerEveryErrorCode(t *testing.T) {
-	for code := ErrorCode(0); code < errorCodeCount; code++ {
-		_, ok := errorCodeDefinitions[code]
-		assert.True(t, ok, "ErrorCode(%d) has no registered definition", code)
+func TestBuiltinErrorCodeDefinitions_registerEveryErrorCode(t *testing.T) {
+	builtins := []ErrorCode{
+		ErrorCodeValidationFailed,
+		ErrorCodeUnauthorized,
+		ErrorCodeRateLimited,
+		ErrorCodeInternalError,
 	}
-	assert.Len(t, errorCodeDefinitions, int(errorCodeCount), "errorCodeDefinitions has an entry not backed by an ErrorCode constant")
+
+	errorCodeRegistryMu.RLock()
+	defer errorCodeRegistryMu.RUnlock()
+	for _, code := range builtins {
+		_, ok := errorCodeRegistry[code]
+		assert.True(t, ok, "%s has no registered definition", code)
+	}
+}
+
+func TestRegisterErrorCode(t *testing.T) {
+	t.Run("registering a new code succeeds and is usable via NewErrorCode", func(t *testing.T) {
+		code := ErrorCode("test_widget_jammed")
+		err := RegisterErrorCode(code, ErrorCodeDefinition{
+			Status:  409,
+			Message: "The widget is jammed.",
+		})
+		assert.NoError(t, err)
+
+		got := NewErrorCode(code)
+		want := events.APIGatewayProxyResponse{
+			StatusCode: 409,
+			Body:       `{"code":"test_widget_jammed","message":"The widget is jammed."}`,
+			Headers:    map[string]string{"Content-Type": "application/json"},
+		}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("registering the same code with an identical definition is a no-op", func(t *testing.T) {
+		code := ErrorCode("test_idempotent_code")
+		def := ErrorCodeDefinition{Status: 400, Message: "idempotent"}
+
+		assert.NoError(t, RegisterErrorCode(code, def))
+		assert.NoError(t, RegisterErrorCode(code, def))
+	})
+
+	t.Run("nil and empty Fields are treated as equal when checking for idempotent re-registration", func(t *testing.T) {
+		code := ErrorCode("test_nil_vs_empty_fields")
+
+		assert.NoError(t, RegisterErrorCode(code, ErrorCodeDefinition{Status: 400, Message: "msg", Fields: nil}))
+		assert.NoError(t, RegisterErrorCode(code, ErrorCodeDefinition{Status: 400, Message: "msg", Fields: []ErrorField{}}))
+	})
+
+	t.Run("identical non-empty Fields are treated as equal when checking for idempotent re-registration", func(t *testing.T) {
+		code := ErrorCode("test_identical_fields")
+		def := ErrorCodeDefinition{Status: 400, Message: "msg", Fields: []ErrorField{NewErrorField("email", FieldErrorCodeInvalidFormat, "must be a valid email")}}
+
+		assert.NoError(t, RegisterErrorCode(code, def))
+		assert.NoError(t, RegisterErrorCode(code, def))
+	})
+
+	t.Run("differing non-empty Fields are treated as a conflict", func(t *testing.T) {
+		code := ErrorCode("test_differing_fields")
+
+		assert.NoError(t, RegisterErrorCode(code, ErrorCodeDefinition{Status: 400, Message: "msg", Fields: []ErrorField{NewErrorField("email", FieldErrorCodeInvalidFormat, "must be a valid email")}}))
+		err := RegisterErrorCode(code, ErrorCodeDefinition{Status: 400, Message: "msg", Fields: []ErrorField{NewErrorField("email", FieldErrorCodeRequired, "email is required")}})
+		assert.Error(t, err)
+	})
+
+	t.Run("registering the same code with a different definition returns an error", func(t *testing.T) {
+		code := ErrorCode("test_conflicting_code")
+
+		assert.NoError(t, RegisterErrorCode(code, ErrorCodeDefinition{Status: 400, Message: "first"}))
+		err := RegisterErrorCode(code, ErrorCodeDefinition{Status: 400, Message: "second"})
+		assert.Error(t, err)
+	})
+
+	t.Run("registering a built-in code with a different definition returns an error", func(t *testing.T) {
+		err := RegisterErrorCode(ErrorCodeUnauthorized, ErrorCodeDefinition{Status: 418, Message: "different"})
+		assert.Error(t, err)
+	})
+
+	t.Run("registering the empty ErrorCode returns an error", func(t *testing.T) {
+		err := RegisterErrorCode(ErrorCode(""), ErrorCodeDefinition{Status: 400, Message: "msg"})
+		assert.Error(t, err)
+	})
+}
+
+func TestMustRegisterErrorCode(t *testing.T) {
+	t.Run("does not panic on a new or identical registration", func(t *testing.T) {
+		code := ErrorCode("test_must_register_ok")
+		def := ErrorCodeDefinition{Status: 400, Message: "msg"}
+		assert.NotPanics(t, func() {
+			MustRegisterErrorCode(code, def)
+			MustRegisterErrorCode(code, def)
+		})
+	})
+
+	t.Run("panics on a conflicting registration", func(t *testing.T) {
+		code := ErrorCode("test_must_register_conflict")
+		MustRegisterErrorCode(code, ErrorCodeDefinition{Status: 400, Message: "first"})
+		assert.Panics(t, func() {
+			MustRegisterErrorCode(code, ErrorCodeDefinition{Status: 400, Message: "second"})
+		})
+	})
 }

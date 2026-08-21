@@ -3,97 +3,112 @@ package response
 import (
 	"fmt"
 	"net/http"
+	"reflect"
+	"sync"
 
 	"github.com/aws/aws-lambda-go/events"
 	"golang.org/x/exp/constraints"
 )
 
-// ErrorCode identifies a known error returned by our APIs. Each ErrorCode has an associated HTTP
-// status, wire code, and default message - see NewErrorCode.
-type ErrorCode int
+// ErrorCode identifies an error returned by an API - either one of ours (see the ErrorCode*
+// constants below) or a custom one an application registers for itself with RegisterErrorCode.
+// The empty ErrorCode is reserved as "unset" and is never a valid registered code.
+type ErrorCode string
 
 const (
-	ErrorCodeValidationFailed ErrorCode = iota
-	ErrorCodeCustomerAlreadyExists
-	ErrorCodeCustomerNotFound
-	ErrorCodeOfferNotFound
-	ErrorCodeOfferNotRedeemable
-	ErrorCodeRedemptionNotFound
-	ErrorCodeUnauthorized
-	ErrorCodeRateLimited
-	ErrorCodeInternalError
-
-	// errorCodeCount is one past the last ErrorCode constant - used to check every constant above
-	// has a registered definition (see error_test.go) and as a guaranteed-unregistered value.
-	errorCodeCount
+	ErrorCodeValidationFailed ErrorCode = "validation_failed"
+	ErrorCodeUnauthorized     ErrorCode = "unauthorized"
+	ErrorCodeRateLimited      ErrorCode = "rate_limited"
+	ErrorCodeInternalError    ErrorCode = "internal_error"
 )
 
-type errorCodeDefinition struct {
-	status  int
-	code    string
-	message string
-	fields  []ErrorField
+func init() {
+	MustRegisterErrorCode(ErrorCodeValidationFailed, ErrorCodeDefinition{
+		Status:  http.StatusBadRequest,
+		Message: "One or more fields in the request body were invalid.",
+	})
+	MustRegisterErrorCode(ErrorCodeUnauthorized, ErrorCodeDefinition{
+		Status:  http.StatusUnauthorized,
+		Message: "Missing or invalid bearer token.",
+	})
+	MustRegisterErrorCode(ErrorCodeRateLimited, ErrorCodeDefinition{
+		Status:  http.StatusTooManyRequests,
+		Message: "Too many requests. Retry after the period in the Retry-After header.",
+	})
+	MustRegisterErrorCode(ErrorCodeInternalError, ErrorCodeDefinition{
+		Status:  http.StatusInternalServerError,
+		Message: "An unexpected error occurred. Please retry.",
+	})
 }
 
-var errorCodeDefinitions = map[ErrorCode]errorCodeDefinition{
-	ErrorCodeValidationFailed: {
-		status:  http.StatusBadRequest,
-		code:    "validation_failed",
-		message: "One or more fields in the request body were invalid.",
-	},
-	ErrorCodeCustomerAlreadyExists: {
-		status:  http.StatusConflict,
-		code:    "customer_already_exists",
-		message: "A customer with this externalCustomerRef already exists.",
-	},
-	ErrorCodeCustomerNotFound: {
-		status:  http.StatusNotFound,
-		code:    "customer_not_found",
-		message: "The customer was not found.",
-	},
-	ErrorCodeOfferNotFound: {
-		status:  http.StatusNotFound,
-		code:    "offer_not_found",
-		message: "The offer was not found.",
-	},
-	ErrorCodeOfferNotRedeemable: {
-		status:  http.StatusConflict,
-		code:    "offer_not_redeemable",
-		message: "This offer is no longer redeemable.",
-	},
-	ErrorCodeRedemptionNotFound: {
-		status:  http.StatusNotFound,
-		code:    "redemption_not_found",
-		message: "The redemption was not found.",
-	},
-	ErrorCodeUnauthorized: {
-		status:  http.StatusUnauthorized,
-		code:    "unauthorized",
-		message: "Missing or invalid bearer token.",
-	},
-	ErrorCodeRateLimited: {
-		status:  http.StatusTooManyRequests,
-		code:    "rate_limited",
-		message: "Too many requests. Retry after the period in the Retry-After header.",
-	},
-	ErrorCodeInternalError: {
-		status:  http.StatusInternalServerError,
-		code:    "internal_error",
-		message: "An unexpected error occurred. Please retry.",
-	},
+// ErrorCodeDefinition bundles the HTTP status, message, and default field-level details NewErrorCode
+// uses to build a response for a given ErrorCode - see RegisterErrorCode.
+type ErrorCodeDefinition struct {
+	Status  int
+	Message string
+	Fields  []ErrorField
+}
+
+var (
+	errorCodeRegistryMu sync.RWMutex
+	errorCodeRegistry   = map[ErrorCode]ErrorCodeDefinition{}
+)
+
+// RegisterErrorCode registers def as the definition NewErrorCode uses for code. Call it once at
+// application startup (e.g. from an init function), before request traffic begins - not on every
+// request.
+//
+// Registering the same code with an identical def more than once is a no-op, not an error, so
+// startup code that might run more than once in a process (test setup, repeated init) stays safe.
+// Registering code with a def that differs from what's already registered - whether one of ours or
+// one an application registered earlier - returns an error: that is a genuine naming collision
+// between two unrelated definitions and must be rejected rather than silently letting the later
+// registration win. Registering the empty ErrorCode also returns an error.
+func RegisterErrorCode(code ErrorCode, def ErrorCodeDefinition) error {
+	if code == "" {
+		return fmt.Errorf("response: cannot register the empty ErrorCode")
+	}
+
+	errorCodeRegistryMu.Lock()
+	defer errorCodeRegistryMu.Unlock()
+
+	if existing, ok := errorCodeRegistry[code]; ok {
+		if fieldsEqual(existing.Fields, def.Fields) && existing.Status == def.Status && existing.Message == def.Message {
+			return nil
+		}
+		return fmt.Errorf("response: ErrorCode %q is already registered with a different definition", code)
+	}
+	errorCodeRegistry[code] = def
+	return nil
+}
+
+// MustRegisterErrorCode is RegisterErrorCode but panics instead of returning an error. Intended for
+// startup-time registration (e.g. from an init function, which can't return an error) where a
+// registration conflict is a programmer error that should fail fast.
+func MustRegisterErrorCode(code ErrorCode, def ErrorCodeDefinition) {
+	if err := RegisterErrorCode(code, def); err != nil {
+		panic(err)
+	}
+}
+
+func fieldsEqual(a, b []ErrorField) bool {
+	if len(a) == 0 && len(b) == 0 {
+		return true
+	}
+	return reflect.DeepEqual(a, b)
 }
 
 // String returns the wire code (e.g. "validation_failed") for c.
 func (c ErrorCode) String() string {
-	return errorCodeDefinitions[c].code
+	return string(c)
 }
 
 // ErrorCodeOption overrides part of the definition NewErrorCode builds a response from.
-type ErrorCodeOption func(*errorCodeDefinition)
+type ErrorCodeOption func(*ErrorCodeDefinition)
 
 // WithErrorStatus overrides the HTTP status NewErrorCode would otherwise use for code.
 func WithErrorStatus(status int) ErrorCodeOption {
-	return func(d *errorCodeDefinition) { d.status = status }
+	return func(d *ErrorCodeDefinition) { d.Status = status }
 }
 
 // WithErrorMessage overrides the message NewErrorCode would otherwise use for code. Needed
@@ -101,50 +116,57 @@ func WithErrorStatus(status int) ErrorCodeOption {
 // name (e.g. customer_not_found's default is generic; a handler that knows the id should override
 // it with the specific message).
 func WithErrorMessage(message string) ErrorCodeOption {
-	return func(d *errorCodeDefinition) { d.message = message }
+	return func(d *ErrorCodeDefinition) { d.Message = message }
 }
 
 // WithErrorFields attaches field-level validation details to the response NewErrorCode builds.
 func WithErrorFields(fields ...ErrorField) ErrorCodeOption {
-	return func(d *errorCodeDefinition) { d.fields = fields }
+	return func(d *ErrorCodeDefinition) { d.Fields = fields }
 }
 
-// NewErrorCode creates a new error response for API Gateway using code's predefined HTTP status,
-// wire code, and message, so every caller reporting the same error produces the same response.
-// Use the With* options to override any of them.
+// NewErrorCode creates a new error response for API Gateway using code's registered HTTP status
+// and message (see RegisterErrorCode), so every caller reporting the same error produces the same
+// response. Use the With* options to override any of them.
 //
-// NewErrorCode panics if code has no registered definition. Every ErrorCode constant in this
-// package is registered, so this can only happen if a new ErrorCode is added here without one.
+// NewErrorCode panics if code has no registered definition - register it first with
+// RegisterErrorCode/MustRegisterErrorCode.
 func NewErrorCode(code ErrorCode, opts ...ErrorCodeOption) events.APIGatewayProxyResponse {
-	def, ok := errorCodeDefinitions[code]
+	errorCodeRegistryMu.RLock()
+	def, ok := errorCodeRegistry[code]
+	errorCodeRegistryMu.RUnlock()
 	if !ok {
-		panic(fmt.Sprintf("response: no definition registered for ErrorCode(%d)", code))
+		panic(fmt.Sprintf("response: no definition registered for ErrorCode %q - register it first with RegisterErrorCode", code))
 	}
 	for _, opt := range opts {
 		opt(&def)
 	}
-	return NewError(def.status, def.code, def.message, def.fields...)
+	return NewError(def.Status, code, def.Message, def.Fields...)
 }
 
 // Field-level codes used across our APIs. Use these instead of inline string literals so every
 // service produces the exact same values.
 const (
-	FieldErrorCodeRequired       = "required"
-	FieldErrorCodeNotUnique      = "not_unique"
-	FieldErrorCodeInvalidFormat  = "invalid_format"
-	FieldErrorCodeOfferWithdrawn = "offer_withdrawn"
+	FieldErrorCodeRequired      = "required"
+	FieldErrorCodeNotUnique     = "not_unique"
+	FieldErrorCodeInvalidFormat = "invalid_format"
 )
 
-type Error[T string | constraints.Integer] struct {
+// errorCodeConstraint is satisfied by any string or integer type, named or not, so a caller can
+// pass an ErrorCode - or a plain string/int - directly as an Error's code.
+type errorCodeConstraint interface {
+	~string | constraints.Integer
+}
+
+type Error[T errorCodeConstraint] struct {
 	Code    T            `json:"code"`
 	Message string       `json:"message"`
 	Fields  []ErrorField `json:"fields,omitempty"`
 }
 
 // NewError creates a new error response for API Gateway. code is distinct from the HTTP status and
-// may be a string or any integer type. Prefer NewErrorCode for one of our known ErrorCode values -
-// use NewError directly only for errors outside that set.
-func NewError[T string | constraints.Integer](status int, code T, msg string, fields ...ErrorField) events.APIGatewayProxyResponse {
+// may be a string or any integer type (or ErrorCode). Prefer NewErrorCode for a registered
+// ErrorCode - use NewError directly only for errors outside that set.
+func NewError[T errorCodeConstraint](status int, code T, msg string, fields ...ErrorField) events.APIGatewayProxyResponse {
 	return NewJSON(status, Error[T]{
 		Code:    code,
 		Message: msg,
