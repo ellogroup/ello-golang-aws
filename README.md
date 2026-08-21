@@ -21,8 +21,32 @@ type respBody struct {
 return response.NewJSON(http.StatusOK, respBody{Message: "json response"})
 // NewJson is a deprecated alias kept for existing consumers - use NewJSON in new code.
 
-// Return an error response
-return response.NewError(http.StatusBadRequest, "error message")
+// Return one of our known errors. NewErrorCode looks up code's predefined HTTP status, wire code,
+// and message, so every caller reporting the same error produces the same response.
+// Response body: {"code":"unauthorized","message":"Missing or invalid bearer token."}
+return response.NewErrorCode(response.ErrorCodeUnauthorized)
+
+// Override the default message when it can't carry details only the caller has (an id, a field
+// name), or the status/fields, with the With* options.
+// Response body: {"code":"customer_not_found","message":"No customer with id `abc123` was found."}
+return response.NewErrorCode(response.ErrorCodeCustomerNotFound,
+    response.WithErrorMessage("No customer with id `abc123` was found."),
+)
+
+// Add field-level validation details with WithErrorFields. FieldErrorCode* constants are the
+// predefined field-level codes for our APIs.
+// Response body:
+// {"code":"validation_failed","message":"One or more fields in the request body were invalid.","fields":[
+//   {"code":"invalid_format","field":"email","message":"must be a valid email"}
+// ]}
+return response.NewErrorCode(response.ErrorCodeValidationFailed,
+    response.WithErrorFields(response.NewErrorField("email", response.FieldErrorCodeInvalidFormat, "must be a valid email")),
+)
+
+// Return an error response outside our known ErrorCode set. code is distinct from the HTTP status
+// and may be a string or any integer type.
+// Response body: {"code":"invalid_brand","message":"unknown brand"}
+return response.NewError(http.StatusBadRequest, "invalid_brand", "unknown brand")
 ```
 
 ## Lambda

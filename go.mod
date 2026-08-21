@@ -7,6 +7,7 @@ require (
 	github.com/ellogroup/ello-golang-clock v1.0.1
 	github.com/ellogroup/ello-golang-ctx/v2 v2.0.0
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/exp v0.0.0-20260603202125-055de637280b
 )
 
 require (
