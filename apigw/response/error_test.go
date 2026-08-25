@@ -161,7 +161,7 @@ func TestNewErrorCode(t *testing.T) {
 func TestBuiltinErrorCodeDefinitions_registerEveryErrorCode(t *testing.T) {
 	builtins := []ErrorCode{
 		ErrorCodeValidationFailed,
-		ErrorCodeInvalidRequestBody,
+		ErrorCodeInvalidJSON,
 		ErrorCodeUnauthorized,
 		ErrorCodeRateLimited,
 		ErrorCodeInternalError,
@@ -189,10 +189,10 @@ func TestNewErrorCode_builtins(t *testing.T) {
 			},
 		},
 		{
-			code: ErrorCodeInvalidRequestBody,
+			code: ErrorCodeInvalidJSON,
 			want: events.APIGatewayProxyResponse{
 				StatusCode: 400,
-				Body:       `{"code":"invalid_request_body","message":"The request body could not be parsed as JSON."}`,
+				Body:       `{"code":"invalid_json","message":"The request body could not be parsed as JSON."}`,
 				Headers:    map[string]string{"Content-Type": "application/json"},
 			},
 		},
