@@ -17,10 +17,11 @@ type ErrorCode string
 // Generic error codes built into this package - see NewErrorCode. Applications can register their
 // own additional codes with RegisterErrorCode/MustRegisterErrorCode.
 const (
-	ErrorCodeValidationFailed ErrorCode = "validation_failed"
-	ErrorCodeUnauthorized     ErrorCode = "unauthorized"
-	ErrorCodeRateLimited      ErrorCode = "rate_limited"
-	ErrorCodeInternalError    ErrorCode = "internal_error"
+	ErrorCodeValidationFailed   ErrorCode = "validation_failed"
+	ErrorCodeInvalidRequestBody ErrorCode = "invalid_request_body"
+	ErrorCodeUnauthorized       ErrorCode = "unauthorized"
+	ErrorCodeRateLimited        ErrorCode = "rate_limited"
+	ErrorCodeInternalError      ErrorCode = "internal_error"
 )
 
 // ErrorCodeDefinition bundles the HTTP status, message, and default field-level details NewErrorCode
@@ -37,6 +38,10 @@ var (
 		ErrorCodeValidationFailed: {
 			Status:  http.StatusBadRequest,
 			Message: "One or more fields in the request body were invalid.",
+		},
+		ErrorCodeInvalidRequestBody: {
+			Status:  http.StatusBadRequest,
+			Message: "The request body could not be parsed as JSON.",
 		},
 		ErrorCodeUnauthorized: {
 			Status:  http.StatusUnauthorized,
