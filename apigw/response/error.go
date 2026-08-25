@@ -18,6 +18,7 @@ type ErrorCode string
 // own additional codes with RegisterErrorCode/MustRegisterErrorCode.
 const (
 	ErrorCodeValidationFailed ErrorCode = "validation_failed"
+	ErrorCodeInvalidJSON      ErrorCode = "invalid_json"
 	ErrorCodeUnauthorized     ErrorCode = "unauthorized"
 	ErrorCodeRateLimited      ErrorCode = "rate_limited"
 	ErrorCodeInternalError    ErrorCode = "internal_error"
@@ -37,6 +38,10 @@ var (
 		ErrorCodeValidationFailed: {
 			Status:  http.StatusBadRequest,
 			Message: "One or more fields in the request body were invalid.",
+		},
+		ErrorCodeInvalidJSON: {
+			Status:  http.StatusBadRequest,
+			Message: "The request body could not be parsed as JSON.",
 		},
 		ErrorCodeUnauthorized: {
 			Status:  http.StatusUnauthorized,
