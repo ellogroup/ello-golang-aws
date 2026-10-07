@@ -162,6 +162,7 @@ func TestBuiltinErrorCodeDefinitions_registerEveryErrorCode(t *testing.T) {
 	builtins := []ErrorCode{
 		ErrorCodeValidationFailed,
 		ErrorCodeInvalidJSON,
+		ErrorCodeUnsupportedMedia,
 		ErrorCodeUnauthorized,
 		ErrorCodeRateLimited,
 		ErrorCodeInternalError,
@@ -193,6 +194,14 @@ func TestNewErrorCode_builtins(t *testing.T) {
 			want: events.APIGatewayProxyResponse{
 				StatusCode: 400,
 				Body:       `{"code":"invalid_json","message":"The request body could not be parsed as JSON."}`,
+				Headers:    map[string]string{"Content-Type": "application/json"},
+			},
+		},
+		{
+			code: ErrorCodeUnsupportedMedia,
+			want: events.APIGatewayProxyResponse{
+				StatusCode: 415,
+				Body:       `{"code":"unsupported_media_type","message":"The request's Content-Type is not supported."}`,
 				Headers:    map[string]string{"Content-Type": "application/json"},
 			},
 		},

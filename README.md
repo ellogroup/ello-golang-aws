@@ -175,6 +175,23 @@ middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
 )
 ```
 
+### Content Type
+
+The content type middleware only lets an API Gateway v1 request through when its `Content-Type` media type is
+allowed. Any other request, including one with no `Content-Type`, gets a 415 built from
+`response.ErrorCodeUnsupportedMedia`. Media types are compared case-insensitively and parameters are ignored, so
+`application/json; charset=utf-8` matches `application/json`.
+
+```go
+middlewares := append(middleware.CommonAPIGatewayV1(logger), middleware.NewContentType("application/json"))
+
+// Allow more media types, or return your own response instead of the default 415:
+middleware.NewContentType("application/json",
+    middleware.WithContentTypeAlsoAllowed("application/merge-patch+json"),
+    middleware.WithContentTypeRejectedResponse(myUnsupportedMediaTypeResponse),
+)
+```
+
 ### Common
 
 There are a selection of common middleware creators for different AWS events.
