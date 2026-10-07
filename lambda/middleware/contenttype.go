@@ -50,14 +50,12 @@ func NewContentType(allowed string, opts ...ContentTypeOption) WithResponse[even
 		opt(&o)
 	}
 
-	m := &contentType{}
+	m := &contentType{rejected: response.NewErrorCode(response.ErrorCodeUnsupportedMedia)}
 	for _, t := range append([]string{allowed}, o.alsoAllowed...) {
 		m.allowed = append(m.allowed, strings.ToLower(strings.TrimSpace(t)))
 	}
 	if o.rejected != nil {
 		m.rejected = *o.rejected
-	} else {
-		m.rejected = response.NewErrorCode(response.ErrorCodeUnsupportedMedia)
 	}
 	return m
 }
