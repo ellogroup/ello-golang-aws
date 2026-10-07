@@ -175,6 +175,19 @@ middleware.NewEventLogger[events.APIGatewayProxyRequest](logger,
 )
 ```
 
+### Content Type
+
+The content type middleware only lets an API Gateway v1 request through when its `Content-Type` media type is one of
+the allowed ones. Any other request, including one with no `Content-Type`, gets the response you pass in, so each
+application keeps its own error format. Media types are compared case-insensitively and parameters are ignored, so
+`application/json; charset=utf-8` matches `application/json`.
+
+```go
+rejected := response.NewErrorCode(...) // or any events.APIGatewayProxyResponse, typically a 415
+
+middlewares := append(middleware.CommonAPIGatewayV1(logger), middleware.NewContentType(rejected, "application/json"))
+```
+
 ### Common
 
 There are a selection of common middleware creators for different AWS events.
