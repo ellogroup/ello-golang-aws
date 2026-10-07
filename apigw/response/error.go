@@ -19,6 +19,7 @@ type ErrorCode string
 const (
 	ErrorCodeValidationFailed ErrorCode = "validation_failed"
 	ErrorCodeInvalidJSON      ErrorCode = "invalid_json"
+	ErrorCodeUnsupportedMedia ErrorCode = "unsupported_media_type"
 	ErrorCodeUnauthorized     ErrorCode = "unauthorized"
 	ErrorCodeRateLimited      ErrorCode = "rate_limited"
 	ErrorCodeInternalError    ErrorCode = "internal_error"
@@ -46,6 +47,10 @@ var (
 		ErrorCodeUnauthorized: {
 			Status:  http.StatusUnauthorized,
 			Message: "Missing or invalid bearer token.",
+		},
+		ErrorCodeUnsupportedMedia: {
+			Status:  http.StatusUnsupportedMediaType,
+			Message: "The request's Content-Type is not supported.",
 		},
 		ErrorCodeRateLimited: {
 			Status:  http.StatusTooManyRequests,
